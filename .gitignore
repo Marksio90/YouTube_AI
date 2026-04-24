@@ -55,6 +55,7 @@ Thumbs.db
 
 # Docker
 *.override.yml
+!docker-compose.override.yml
 
 # Secrets / certs
 *.pem

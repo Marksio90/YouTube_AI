@@ -1,0 +1,36 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage/
+
+# Tests
+tests/
+test_*.py
+
+# Dev tools
+.env
+.env.*
+!.env.example
+
+# VCS
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+.dockerignore
+
+# Docs / misc
+*.md
+*.log
+.DS_Store
