@@ -35,7 +35,6 @@ dependencies = [
     "kombu==5.4.2",
 
     # AI / LLM
-    "anthropic==0.41.0",
     "openai==1.58.1",
     "tiktoken==0.8.0",
 
