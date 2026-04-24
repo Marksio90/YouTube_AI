@@ -1,25 +1,18 @@
 """
-RecommenderAgent — generates content strategy recommendations.
-
-Analyzes channel performance data (top videos, analytics trends, topic inventory)
-and returns actionable recommendations for the next content cycle.
+RecommenderAgent — generates content strategy recommendations for a channel.
+Migrated to new BaseAgent provider abstraction.
 """
+from __future__ import annotations
 
 import structlog
 
 from worker.agents.base import BaseAgent
+from worker.agents.schemas import AgentInput, AgentOutput
 
 log = structlog.get_logger(__name__)
 
 _SYSTEM = """You are a YouTube channel growth strategist specializing in faceless (no-face) content.
 You analyze performance data and generate concrete, actionable recommendations.
-
-Focus on:
-1. Content gaps — topics the audience wants but the channel hasn't covered
-2. Format opportunities — video lengths, styles that perform best on this channel
-3. SEO opportunities — keywords with growing search volume and low competition
-4. Monetization — topics that attract high-CPM advertisers
-5. Publishing cadence — optimal schedule based on analytics
 
 Return ONLY valid JSON. No markdown, no preamble."""
 
@@ -55,7 +48,23 @@ _SCHEMA = """{
 }"""
 
 
-class RecommenderAgent(BaseAgent):
+class _Noop(AgentInput):
+    pass
+
+
+class _NoopOut(AgentOutput):
+    pass
+
+
+class RecommenderAgent(BaseAgent[_Noop, _NoopOut]):
+    """
+    Legacy free-form interface for tasks/recommendations.py.
+    Uses new BaseAgent provider abstraction and _call_json helper.
+    """
+
+    agent_name = "recommender"
+    default_temperature = 0.7
+
     async def generate(
         self,
         *,
@@ -87,3 +96,9 @@ class RecommenderAgent(BaseAgent):
 
         log.info("recommender.generate", channel=channel_name, niche=niche)
         return await self._call_json(_SYSTEM, user_msg, temperature=0.7)
+
+    async def execute(self, inp: _Noop) -> _NoopOut:
+        return _NoopOut()
+
+    async def mock_execute(self, inp: _Noop) -> _NoopOut:
+        return _NoopOut()

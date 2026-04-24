@@ -19,6 +19,10 @@ class WorkerSettings(BaseSettings):
     llm_default_model: str = "gpt-4o-mini"
     llm_max_tokens: int = 8192
     llm_temperature: float = 0.7
+    # Local LLM (Ollama / LM Studio — OpenAI-compatible endpoint)
+    llm_local_base_url: str = "http://localhost:11434/v1"
+    llm_local_model: str = "llama3.2"
+    llm_provider: str = "openai"  # "openai" | "local"
 
     # ── YouTube ───────────────────────────────────────────────────────────────
     youtube_client_id: str = ""
