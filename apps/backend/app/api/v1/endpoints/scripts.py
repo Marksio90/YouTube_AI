@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
 from app.schemas.common import PaginatedResponse, TaskResponse
@@ -15,19 +15,28 @@ async def list_scripts(
     current_user: CurrentUser,
     db: DB,
     channel_id: uuid.UUID | None = None,
+    brief_id: uuid.UUID | None = None,
+    status: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[ScriptRead]:
     svc = ScriptService(db)
     return await svc.list_for_user(
-        str(current_user.id), channel_id=channel_id, page=page, page_size=page_size
+        current_user.id,
+        channel_id=channel_id,
+        brief_id=brief_id,
+        status=status,
+        page=page,
+        page_size=page_size,
     )
 
 
-@router.post("", response_model=ScriptRead, status_code=201)
-async def create_script(payload: ScriptCreate, current_user: CurrentUser, db: DB) -> ScriptRead:
+@router.post("", response_model=ScriptRead, status_code=status.HTTP_201_CREATED)
+async def create_script(
+    payload: ScriptCreate, current_user: CurrentUser, db: DB
+) -> ScriptRead:
     svc = ScriptService(db)
-    script = await svc.create(payload)
+    script = await svc.create(payload, owner_id=current_user.id)
     return ScriptRead.model_validate(script)
 
 
@@ -35,25 +44,16 @@ async def create_script(payload: ScriptCreate, current_user: CurrentUser, db: DB
 async def generate_script(
     payload: ScriptGenerateRequest, current_user: CurrentUser, db: DB
 ) -> TaskResponse:
-    from app.tasks.ai import generate_script_task
-
-    task = generate_script_task.delay(
-        channel_id=str(payload.channel_id),
-        topic=payload.topic,
-        tone=payload.tone,
-        target_duration_seconds=payload.target_duration_seconds,
-        keywords=payload.keywords,
-        additional_context=payload.additional_context,
-    )
-    return TaskResponse(task_id=task.id, status="pending")
+    svc = ScriptService(db)
+    return await svc.generate(payload, owner_id=current_user.id)
 
 
 @router.get("/{script_id}", response_model=ScriptRead)
-async def get_script(script_id: uuid.UUID, current_user: CurrentUser, db: DB) -> ScriptRead:
+async def get_script(
+    script_id: uuid.UUID, current_user: CurrentUser, db: DB
+) -> ScriptRead:
     svc = ScriptService(db)
-    script = await svc.get_by_id(script_id)
-    if not script:
-        raise HTTPException(status_code=404, detail="Script not found")
+    script = await svc.get_for_user(script_id, owner_id=current_user.id)
     return ScriptRead.model_validate(script)
 
 
@@ -62,7 +62,13 @@ async def update_script(
     script_id: uuid.UUID, payload: ScriptUpdate, current_user: CurrentUser, db: DB
 ) -> ScriptRead:
     svc = ScriptService(db)
-    script = await svc.update(script_id, payload)
-    if not script:
-        raise HTTPException(status_code=404, detail="Script not found")
+    script = await svc.update(script_id, payload, owner_id=current_user.id)
     return ScriptRead.model_validate(script)
+
+
+@router.delete("/{script_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_script(
+    script_id: uuid.UUID, current_user: CurrentUser, db: DB
+) -> None:
+    svc = ScriptService(db)
+    await svc.delete(script_id, owner_id=current_user.id)
