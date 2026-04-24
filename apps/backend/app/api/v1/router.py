@@ -9,6 +9,7 @@ from app.api.v1.endpoints.pipelines import router as pipelines_router
 from app.api.v1.endpoints.publications import router as publications_router
 from app.api.v1.endpoints.scripts import router as scripts_router
 from app.api.v1.endpoints.topics import router as topics_router
+from app.api.v1.endpoints.workflows import router as workflows_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -21,3 +22,4 @@ api_router.include_router(publications_router)
 api_router.include_router(analytics_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(pipelines_router)
+api_router.include_router(workflows_router)
