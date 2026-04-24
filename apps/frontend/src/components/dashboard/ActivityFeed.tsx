@@ -10,8 +10,8 @@ export function ActivityFeed() {
   const { data, isLoading } = useWorkflows({ pageSize: 8 });
 
   return (
-    <div className="rounded-xl border border-gray-800 bg-surface-raised p-5">
-      <h2 className="text-sm font-semibold text-gray-200 mb-4">Recent Workflows</h2>
+    <div className="card p-5">
+      <h2 className="t-section mb-4">Recent Workflows</h2>
       {isLoading ? (
         <div className="space-y-0">
           {Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}

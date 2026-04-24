@@ -1,8 +1,14 @@
 export { Badge, StatusBadge } from "./Badge";
 export { Button } from "./Button";
 export { Card, CardHeader, CardTitle } from "./Card";
+export { ChartContainer } from "./ChartContainer";
+export { Drawer } from "./Drawer";
 export { EmptyState } from "./EmptyState";
 export { ErrorState } from "./ErrorState";
+export { Modal } from "./Modal";
 export { Progress, ScoreBar } from "./Progress";
 export { Skeleton, SkeletonCard, SkeletonRow, SkeletonMetric } from "./Skeleton";
 export { Spinner } from "./Spinner";
+export { Tabs, TabsList, TabsTrigger, TabsContent } from "./Tabs";
+export { WorkflowTimeline } from "./WorkflowTimeline";
+export type { TimelineStep } from "./WorkflowTimeline";

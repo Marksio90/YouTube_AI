@@ -10,9 +10,9 @@ export function RecommendationPanel() {
   const { data, isLoading } = useTopics({ status: "new", pageSize: 5 });
 
   return (
-    <div className="rounded-xl border border-gray-800 bg-surface-raised p-5">
+    <div className="card p-5">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-gray-200">Top Topics</h2>
+        <h2 className="t-section">Top Topics</h2>
         <Badge variant="info" className="text-[10px]">AI picks</Badge>
       </div>
       {isLoading ? (

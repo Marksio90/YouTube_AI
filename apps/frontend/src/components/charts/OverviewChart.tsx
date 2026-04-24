@@ -32,15 +32,15 @@ export function OverviewChart() {
 
   if (!chartData.length) {
     return (
-      <div className="rounded-xl border border-gray-800 bg-surface-raised p-5 flex items-center justify-center h-48 text-sm text-gray-600">
+      <div className="card p-5 flex items-center justify-center h-48 text-sm text-gray-600">
         No analytics data yet
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-gray-800 bg-surface-raised p-5">
-      <h2 className="text-sm font-semibold text-gray-200 mb-4">Views — Last 30 days</h2>
+    <div className="card p-5">
+      <h2 className="t-section mb-4">Views — Last 30 days</h2>
       <ResponsiveContainer width="100%" height={200}>
         <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
           <defs>
