@@ -6,6 +6,7 @@ from app.db.models.publication import Publication
 from app.db.models.script import Script
 from app.db.models.topic import Topic
 from app.db.models.user import User
+from app.db.models.workflow import WorkflowAuditEvent, WorkflowJob, WorkflowRun
 
 __all__ = [
     "User",
@@ -18,4 +19,7 @@ __all__ = [
     "PipelineRun",
     "PipelineStepResult",
     "AnalyticsSnapshot",
+    "WorkflowRun",
+    "WorkflowJob",
+    "WorkflowAuditEvent",
 ]

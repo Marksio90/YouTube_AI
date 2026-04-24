@@ -70,9 +70,11 @@ app.conf.task_routes = {
     # Analytics ingestion
     "worker.tasks.analytics.*":        {"queue": "analytics"},
 
-    # YouTube + pipeline orchestration
+    # YouTube + pipeline + workflow orchestration
     "worker.tasks.youtube.*":          {"queue": "default"},
     "worker.tasks.pipeline.*":         {"queue": "default"},
+    "worker.tasks.workflow.cancel_workflow": {"queue": "high"},
+    "worker.tasks.workflow.*":         {"queue": "default"},
 }
 
 # ── Beat schedule (periodic tasks) ───────────────────────────────────────────
