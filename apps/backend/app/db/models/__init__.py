@@ -1,5 +1,6 @@
 from app.db.models.analytics import AnalyticsSnapshot
 from app.db.models.brief import Brief
+from app.db.models.performance import PerformanceScore, Recommendation
 from app.db.models.channel import Channel
 from app.db.models.pipeline import Pipeline, PipelineRun, PipelineStepResult
 from app.db.models.publication import Publication
@@ -19,6 +20,8 @@ __all__ = [
     "PipelineRun",
     "PipelineStepResult",
     "AnalyticsSnapshot",
+    "PerformanceScore",
+    "Recommendation",
     "WorkflowRun",
     "WorkflowJob",
     "WorkflowAuditEvent",
