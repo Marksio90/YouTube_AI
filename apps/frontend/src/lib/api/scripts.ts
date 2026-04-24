@@ -1,4 +1,4 @@
-import type { AsyncTask, PaginatedResponse, Script } from "@ai-media-os/shared";
+import type { PaginatedResponse, Script } from "@/lib/types";
 import { apiClient } from "./client";
 
 export const scriptsApi = {
@@ -19,7 +19,7 @@ export const scriptsApi = {
     target_duration_seconds?: number;
     keywords?: string[];
     additional_context?: string;
-  }) => apiClient.post<AsyncTask>("/scripts/generate", data),
+  }) => apiClient.post<{ task_id: string; status: string }>("/scripts/generate", data),
 
   update: (id: string, data: Partial<Pick<Script, "title" | "hook" | "body" | "cta" | "keywords" | "status">>) =>
     apiClient.patch<Script>(`/scripts/${id}`, data),

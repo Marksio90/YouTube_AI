@@ -1,4 +1,4 @@
-import type { Channel, PaginatedResponse } from "@ai-media-os/shared";
+import type { Channel, PaginatedResponse } from "@/lib/types";
 import { apiClient } from "./client";
 
 export const channelsApi = {
