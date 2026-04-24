@@ -411,3 +411,81 @@ export interface WorkflowAuditEvent {
   data: Record<string, unknown>;
   occurred_at: string;
 }
+
+// ── Compliance ────────────────────────────────────────────────────────────────
+
+export type CheckStatus   = "pending" | "running" | "passed" | "flagged" | "blocked" | "error";
+export type CheckMode     = "rule" | "ai" | "both";
+export type RiskCategory  = "ad_safety" | "copyright_risk" | "factual_risk" | "reused_content" | "ai_disclosure";
+export type RiskSeverity  = "critical" | "high" | "medium" | "low" | "info";
+export type FlagSource    = "rule" | "ai";
+
+export interface RiskFlag {
+  id: string;
+  check_id: string;
+  category: RiskCategory;
+  severity: RiskSeverity;
+  source: FlagSource;
+  rule_id: string;
+  title: string;
+  detail: string;
+  evidence: string | null;
+  suggestion: string | null;
+  text_start: number | null;
+  text_end: number | null;
+  is_dismissed: boolean;
+  dismissed_by: string | null;
+  dismissed_at: string | null;
+  created_at: string;
+}
+
+export interface CategoryBreakdown {
+  category: RiskCategory;
+  score: number;
+  flag_count: number;
+  worst_severity: RiskSeverity | null;
+  flags: RiskFlag[];
+}
+
+export interface ComplianceCheck {
+  id: string;
+  channel_id: string;
+  script_id: string | null;
+  publication_id: string | null;
+  mode: CheckMode;
+  status: CheckStatus;
+  risk_score: number;
+  category_scores: Record<string, number>;
+  flag_count: number;
+  critical_count: number;
+  high_count: number;
+  monetization_eligible: boolean;
+  ai_disclosure_required: boolean;
+  is_overridden: boolean;
+  override_by: string | null;
+  override_reason: string | null;
+  overridden_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  flags: RiskFlag[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComplianceCheckDetail extends ComplianceCheck {
+  categories: CategoryBreakdown[];
+}
+
+export interface ComplianceSummary {
+  id: string;
+  script_id: string | null;
+  publication_id: string | null;
+  status: CheckStatus;
+  risk_score: number;
+  flag_count: number;
+  critical_count: number;
+  monetization_eligible: boolean;
+  ai_disclosure_required: boolean;
+  is_overridden: boolean;
+  created_at: string;
+}

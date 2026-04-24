@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints.analytics import router as analytics_router
+from app.api.v1.endpoints.compliance import router as compliance_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.briefs import router as briefs_router
 from app.api.v1.endpoints.channels import router as channels_router
@@ -22,6 +23,7 @@ api_router.include_router(scripts_router)
 api_router.include_router(publications_router)
 api_router.include_router(analytics_router)
 api_router.include_router(monetization_router)
+api_router.include_router(compliance_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(pipelines_router)
 api_router.include_router(workflows_router)
