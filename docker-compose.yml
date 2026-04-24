@@ -15,6 +15,7 @@ x-backend-env: &backend-env
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
   OPENAI_API_KEY: ${OPENAI_API_KEY}
   LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-claude-sonnet-4-6}
+  LLM_PROVIDER: ${LLM_PROVIDER:-openai}
   YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID}
   YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET}
   S3_ENDPOINT_URL: ${S3_ENDPOINT_URL}
@@ -103,7 +104,7 @@ services:
       target: production
     container_name: ai_media_worker
     restart: unless-stopped
-    command: celery -A worker.celery_app worker --loglevel=info --concurrency=4 -Q default,ai,pipeline
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=4 -Q default,high,ai,media,analytics,pipeline
     environment:
       <<: *backend-env
     depends_on:
@@ -150,8 +151,8 @@ services:
   # ── Frontend ─────────────────────────────────────────────────────────────────
   frontend:
     build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/frontend/Dockerfile
       target: production
     container_name: ai_media_frontend
     restart: unless-stopped
@@ -164,6 +165,12 @@ services:
       - backend
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - media_os_net
 

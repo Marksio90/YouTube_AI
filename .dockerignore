@@ -1,0 +1,45 @@
+# Root .dockerignore — applies when build context is the repo root (frontend build)
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+apps/frontend/.next/
+apps/frontend/out/
+*.tsbuildinfo
+
+# Python (backend/worker are separate build contexts)
+apps/backend/__pycache__/
+apps/backend/.venv/
+apps/backend/.pytest_cache/
+apps/backend/coverage/
+apps/backend/*.egg-info/
+apps/worker/__pycache__/
+apps/worker/.venv/
+apps/worker/.pytest_cache/
+apps/worker/*.egg-info/
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose*.yml
+infra/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Docs / tools
+*.md
+*.log
+.DS_Store
+Makefile
