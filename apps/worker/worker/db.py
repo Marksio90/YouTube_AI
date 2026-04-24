@@ -1,15 +1,27 @@
-from contextlib import asynccontextmanager
-from collections.abc import AsyncGenerator
+"""
+Database and Redis access for the worker process.
 
+Rules:
+- DB access is always async (asyncio.run() wraps at task boundary).
+- Redis access is sync (Celery tasks are sync; redis-py sync client).
+- Both clients are module-level singletons — created once per worker process.
+"""
+
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
+import redis as redis_sync
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from worker.config import settings
 
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
 _engine = create_async_engine(
     settings.database_url,
-    pool_size=5,
-    max_overflow=5,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
     pool_pre_ping=True,
+    pool_recycle=1800,
 )
 
 _session_factory = async_sessionmaker(
@@ -30,3 +42,20 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+
+# ── Redis (sync) ──────────────────────────────────────────────────────────────
+_redis_client: redis_sync.Redis | None = None
+
+
+def get_redis() -> redis_sync.Redis:
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis_sync.Redis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+            retry_on_timeout=True,
+        )
+    return _redis_client
