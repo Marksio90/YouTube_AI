@@ -38,10 +38,8 @@ class Settings(BaseSettings):
     celery_result_backend: str
 
     # ── AI / LLM ──────────────────────────────────────────────────────────────
-    anthropic_api_key: str = ""
     openai_api_key: str = ""
-    llm_default_model: str = "claude-sonnet-4-6"
-    llm_fallback_model: str = "gpt-4o-mini"
+    llm_default_model: str = "gpt-4o-mini"
     llm_max_tokens: int = 8192
     llm_temperature: float = 0.7
 
