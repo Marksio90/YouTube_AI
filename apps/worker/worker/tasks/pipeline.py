@@ -1,123 +1,200 @@
+"""
+Pipeline orchestration task — drives multi-step content production workflows.
+
+Task names:
+  worker.tasks.pipeline.run_pipeline  (per pipeline_run, on-demand)
+
+A pipeline run dispatches downstream tasks (ai, media, youtube) and tracks
+overall status. Steps are executed sequentially; failure marks run as failed.
+"""
+
 import asyncio
-import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 import structlog
+from sqlalchemy import text
 
 from worker.celery_app import app
 from worker.db import get_db_session
+from worker.idempotency import guard as idp
+from worker import registry
 
-logger = structlog.get_logger(__name__)
+log = structlog.get_logger(__name__)
 
-STEP_HANDLERS: dict[str, str] = {
-    "research_topic": "worker.tasks.pipeline._step_research_topic",
-    "generate_script": "worker.tasks.ai.generate_script_task",
-    "review_compliance": "worker.tasks.pipeline._step_compliance",
-    "generate_thumbnail": "worker.tasks.pipeline._step_thumbnail",
-    "render_video": "worker.tasks.pipeline._step_render",
-    "upload_youtube": "worker.tasks.youtube.upload_video_task",
-    "schedule_post": "worker.tasks.pipeline._step_schedule",
-    "notify": "worker.tasks.pipeline._step_notify",
+_STEP_TO_TASK = {
+    "generate_brief":     ("worker.tasks.ai.generate_brief",     "ai"),
+    "generate_script":    ("worker.tasks.ai.generate_script",    "ai"),
+    "analyze_seo":        ("worker.tasks.ai.analyze_seo",        "ai"),
+    "check_compliance":   ("worker.tasks.ai.check_compliance",   "high"),
+    "discover_topics":    ("worker.tasks.topics.discover_topics", "ai"),
+    "generate_audio":     ("worker.tasks.media.generate_audio",  "media"),
+    "generate_thumbnail": ("worker.tasks.media.generate_thumbnail", "media"),
+    "upload_video":       ("worker.tasks.youtube.upload_video",  "default"),
 }
 
 
 @app.task(
     bind=True,
     name="worker.tasks.pipeline.run_pipeline",
-    queue="pipeline",
+    queue="default",
     max_retries=0,
+    soft_time_limit=1800,
+    time_limit=2400,
 )
-def run_pipeline_task(self, run_id: str) -> dict:
-    log = logger.bind(run_id=run_id, task_id=self.request.id)
-    log.info("pipeline_run.start")
+def run_pipeline(self, *, run_id: str) -> dict[str, Any]:
+    task_id = self.request.id
+    log_ = log.bind(task_id=task_id, run_id=run_id)
+    log_.info("run_pipeline.start")
 
-    result = asyncio.run(_execute_pipeline_run(run_id, log))
-    return result
+    idp_key = f"pipeline:{run_id}"
+    if (cached := idp.get_result(idp_key)) is not None:
+        log_.info("run_pipeline.cache_hit")
+        return cached
+
+    try:
+        with idp.lock(idp_key, task_id=task_id):
+            return asyncio.run(_run_pipeline(self, task_id, run_id, idp_key))
+    except Exception as exc:
+        log_.error("run_pipeline.failed", error=str(exc))
+        return {"status": "failed", "error": str(exc)}
 
 
-async def _execute_pipeline_run(run_id: str, log) -> dict:
+async def _run_pipeline(task, task_id, run_id, idp_key) -> dict:
     async with get_db_session() as db:
-        from sqlalchemy import text
-
-        run_row = (await db.execute(
-            text("SELECT pr.*, p.steps FROM pipeline_runs pr JOIN pipelines p ON p.id = pr.pipeline_id WHERE pr.id = :id"),
-            {"id": run_id},
-        )).mappings().one_or_none()
-
-        if not run_row:
+        run = (
+            await db.execute(
+                text("""
+                    SELECT pr.id, pr.pipeline_id, pr.input, pr.channel_id,
+                           p.steps
+                    FROM pipeline_runs pr
+                    JOIN pipelines p ON p.id=pr.pipeline_id
+                    WHERE pr.id=:id
+                """),
+                {"id": run_id},
+            )
+        ).mappings().one_or_none()
+        if not run:
             raise ValueError(f"PipelineRun {run_id} not found")
+
+        await registry.record_start(
+            db, task_id=task_id, task_name="run_pipeline",
+            entity_type="pipeline_run", entity_id=run_id,
+        )
 
         await db.execute(
             text("UPDATE pipeline_runs SET status='running', started_at=:now WHERE id=:id"),
-            {"now": datetime.now(timezone.utc).isoformat(), "id": run_id},
+            {"now": _now_iso(), "id": run_id},
         )
 
-        steps = run_row["steps"] or []
-        step_results = []
-        context: dict = dict(run_row["input"] or {})
+    steps: list[dict] = run["steps"] or []
+    context: dict = dict(run["input"] or {})
+    step_results: list[dict] = []
 
-        for step in steps:
-            step_id = step["id"]
-            step_type = step["type"]
-            log.info("pipeline_step.start", step_id=step_id, step_type=step_type)
+    for step in steps:
+        step_id = str(step.get("id", ""))
+        step_type = str(step.get("type", ""))
+        step_config = dict(step.get("config", {}))
 
-            step_result = {
-                "step_id": step_id,
-                "status": "running",
-                "output": None,
-                "error": None,
-                "started_at": datetime.now(timezone.utc).isoformat(),
-                "completed_at": None,
-                "retry_count": 0,
-            }
+        log.info("pipeline_step.start", run_id=run_id, step_id=step_id, step_type=step_type)
+        task.update_state(
+            state="PROGRESS",
+            meta={"step": step_type, "step_id": step_id, "total_steps": len(steps)},
+        )
 
-            try:
-                output = await _dispatch_step(step_type, step.get("config", {}), context)
-                context.update(output or {})
-                step_result["status"] = "completed"
-                step_result["output"] = output
-            except Exception as exc:
-                log.error("pipeline_step.failed", step_id=step_id, error=str(exc))
-                step_result["status"] = "failed"
-                step_result["error"] = str(exc)
-                step_results.append(step_result)
+        step_result: dict = {
+            "step_id": step_id,
+            "step_type": step_type,
+            "status": "running",
+            "output": None,
+            "error": None,
+            "started_at": _now_iso(),
+            "completed_at": None,
+        }
 
+        try:
+            output = await _execute_step(step_type, step_config, context, run_id)
+            context.update(output or {})
+            step_result["status"] = "completed"
+            step_result["output"] = output
+        except Exception as exc:
+            log.error("pipeline_step.failed", run_id=run_id, step_id=step_id, error=str(exc))
+            step_result["status"] = "failed"
+            step_result["error"] = str(exc)
+            step_results.append(step_result)
+
+            async with get_db_session() as db:
                 await db.execute(
-                    text("UPDATE pipeline_runs SET status='failed', step_results=:sr, completed_at=:now, error=:err WHERE id=:id"),
+                    text("""
+                        UPDATE pipeline_runs
+                        SET status='failed', step_results=:sr,
+                            completed_at=:now, error=:err
+                        WHERE id=:id
+                    """),
                     {
                         "sr": step_results,
-                        "now": datetime.now(timezone.utc).isoformat(),
-                        "err": f"Step {step_id} failed: {exc}",
+                        "now": _now_iso(),
+                        "err": f"Step '{step_type}' ({step_id}) failed: {exc}",
                         "id": run_id,
                     },
                 )
-                return {"status": "failed", "error": str(exc)}
+                await registry.record_failure(db, task_id=task_id, error=str(exc))
 
-            step_result["completed_at"] = datetime.now(timezone.utc).isoformat()
-            step_results.append(step_result)
+            return {"status": "failed", "run_id": run_id, "failed_step": step_type}
 
+        step_result["completed_at"] = _now_iso()
+        step_results.append(step_result)
+
+    async with get_db_session() as db:
         await db.execute(
-            text("UPDATE pipeline_runs SET status='completed', step_results=:sr, output=:out, completed_at=:now WHERE id=:id"),
-            {
-                "sr": step_results,
-                "out": context,
-                "now": datetime.now(timezone.utc).isoformat(),
-                "id": run_id,
-            },
+            text("""
+                UPDATE pipeline_runs
+                SET status='completed', step_results=:sr, output=:out, completed_at=:now
+                WHERE id=:id
+            """),
+            {"sr": step_results, "out": context, "now": _now_iso(), "id": run_id},
         )
+        await registry.record_success(db, task_id=task_id, result={"context": context})
 
-        log.info("pipeline_run.complete", run_id=run_id)
-        return {"status": "completed", "output": context}
+    result = {"status": "completed", "run_id": run_id, "steps_completed": len(steps)}
+    idp.set_result(idp_key, result, ttl=86400)
+    log.info("run_pipeline.complete", run_id=run_id, steps=len(steps))
+    return result
 
 
-async def _dispatch_step(step_type: str, config: dict, context: dict) -> dict:
-    if step_type == "research_topic":
-        return {"topic": config.get("topic") or context.get("topic", ""), "researched": True}
+async def _execute_step(step_type: str, config: dict, context: dict, run_id: str) -> dict:
+    """Dispatch a step to the appropriate Celery task and wait for the result."""
+    if step_type not in _STEP_TO_TASK:
+        log.warning("pipeline_step.unknown", step_type=step_type)
+        return {"step_type": step_type, "skipped": True}
 
-    if step_type == "notify":
-        log = logger.bind(step_type="notify")
-        log.info("notify.step", message=config.get("message", "Pipeline step completed"))
-        return {}
+    task_name, queue = _STEP_TO_TASK[step_type]
+    kwargs = _build_kwargs(step_type, config, context)
 
-    # Remaining steps are handled by dedicated tasks (called synchronously in pipeline context)
-    return {"step_type": step_type, "skipped": True, "reason": "not_implemented_inline"}
+    from worker.celery_app import app as celery_app
+    async_result = celery_app.send_task(task_name, kwargs=kwargs, queue=queue)
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, lambda: async_result.get(timeout=600))
+    return result or {}
+
+
+def _build_kwargs(step_type: str, config: dict, context: dict) -> dict:
+    """Merge step config with pipeline context to build task kwargs."""
+    merged = {**context, **config}
+    lookup = {
+        "generate_brief":     lambda m: {"topic_id": m["topic_id"]},
+        "generate_script":    lambda m: {"brief_id": m.get("brief_id"), "topic_id": m.get("topic_id")},
+        "analyze_seo":        lambda m: {"script_id": m["script_id"]},
+        "check_compliance":   lambda m: {"script_id": m["script_id"]},
+        "discover_topics":    lambda m: {"channel_id": m["channel_id"], "count": m.get("count", 10)},
+        "generate_audio":     lambda m: {"script_id": m["script_id"], "voice_id": m.get("voice_id", "alloy")},
+        "generate_thumbnail": lambda m: {"publication_id": m["publication_id"]},
+        "upload_video":       lambda m: {"publication_id": m["publication_id"]},
+    }
+    builder = lookup.get(step_type)
+    return builder(merged) if builder else merged
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()

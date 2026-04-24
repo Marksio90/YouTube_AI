@@ -55,3 +55,61 @@ def enqueue_compliance_check(*, script_id: str) -> str:
         queue="ai",
     )
     return result.id
+
+
+def enqueue_discover_topics(
+    *,
+    channel_id: str,
+    count: int = 10,
+    force: bool = False,
+) -> str:
+    result = celery_client.send_task(
+        "worker.tasks.topics.discover_topics",
+        kwargs={"channel_id": channel_id, "count": count, "force": force},
+        queue="ai",
+    )
+    return result.id
+
+
+def enqueue_score_topic(*, topic_id: str, force: bool = False) -> str:
+    result = celery_client.send_task(
+        "worker.tasks.topics.score_topic",
+        kwargs={"topic_id": topic_id, "force": force},
+        queue="ai",
+    )
+    return result.id
+
+
+def enqueue_generate_recommendations(*, channel_id: str, force: bool = False) -> str:
+    result = celery_client.send_task(
+        "worker.tasks.recommendations.generate_recommendations",
+        kwargs={"channel_id": channel_id, "force": force},
+        queue="ai",
+    )
+    return result.id
+
+
+def enqueue_generate_audio(
+    *,
+    script_id: str,
+    voice_id: str = "alloy",
+) -> str:
+    result = celery_client.send_task(
+        "worker.tasks.media.generate_audio",
+        kwargs={"script_id": script_id, "voice_id": voice_id},
+        queue="media",
+    )
+    return result.id
+
+
+def enqueue_generate_thumbnail(
+    *,
+    publication_id: str,
+    style: str = "bold_text",
+) -> str:
+    result = celery_client.send_task(
+        "worker.tasks.media.generate_thumbnail",
+        kwargs={"publication_id": publication_id, "style": style},
+        queue="media",
+    )
+    return result.id
