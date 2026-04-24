@@ -1,4 +1,5 @@
 from app.db.models.analytics import AnalyticsSnapshot
+from app.db.models.compliance import ComplianceCheck, RiskFlag
 from app.db.models.brief import Brief
 from app.db.models.channel import Channel
 from app.db.models.monetization import AffiliateLink, RevenueStream
@@ -25,6 +26,8 @@ __all__ = [
     "Recommendation",
     "RevenueStream",
     "AffiliateLink",
+    "ComplianceCheck",
+    "RiskFlag",
     "WorkflowRun",
     "WorkflowJob",
     "WorkflowAuditEvent",

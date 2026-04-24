@@ -57,6 +57,7 @@ app.conf.task_default_routing_key = "default"
 # ── Task routing ──────────────────────────────────────────────────────────────
 app.conf.task_routes = {
     # Compliance is high-priority (blocks publication)
+    "worker.tasks.compliance.*":        {"queue": "high"},
     "worker.tasks.ai.check_compliance": {"queue": "high"},
 
     # AI / LLM heavy
@@ -137,6 +138,7 @@ def on_worker_ready(**_kwargs) -> None:
 # ── Task registration (explicit — no autodiscover magic) ──────────────────────
 import worker.tasks.ai             # noqa: E402, F401
 import worker.tasks.analytics      # noqa: E402, F401
+import worker.tasks.compliance     # noqa: E402, F401
 import worker.tasks.media          # noqa: E402, F401
 import worker.tasks.pipeline       # noqa: E402, F401
 import worker.tasks.recommendations  # noqa: E402, F401

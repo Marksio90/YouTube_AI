@@ -9,6 +9,7 @@ import {
   Youtube,
   BarChart3,
   Banknote,
+  ShieldCheck,
   GitBranch,
   Settings,
   Zap,
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/publications", label: "Publications",  icon: Youtube },
   { href: "/dashboard/analytics",    label: "Analytics",     icon: BarChart3 },
   { href: "/dashboard/monetization", label: "Monetization",  icon: Banknote },
+  { href: "/dashboard/compliance",   label: "Compliance",    icon: ShieldCheck },
   { href: "/dashboard/workflows",    label: "Workflows",     icon: GitBranch },
 ];
 
