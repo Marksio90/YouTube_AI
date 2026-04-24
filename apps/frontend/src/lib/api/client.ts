@@ -1,4 +1,4 @@
-import type { ApiError } from "@ai-media-os/shared";
+interface ApiError { code: string; message: string; details: Record<string, unknown> | null }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
