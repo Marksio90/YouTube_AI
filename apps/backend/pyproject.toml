@@ -45,6 +45,9 @@ dependencies = [
     # Storage
     "boto3==1.35.88",
 
+    # Crypto (token encryption for YouTube OAuth)
+    "cryptography==44.0.0",
+
     # Utilities
     "python-dotenv==1.0.1",
     "structlog==24.4.0",

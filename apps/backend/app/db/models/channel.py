@@ -9,8 +9,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from app.db.models.analytics import AnalyticsSnapshot
+    from app.db.models.brief import Brief
+    from app.db.models.publication import Publication
+    from app.db.models.topic import Topic
     from app.db.models.user import User
-    from app.db.models.video import Video
 
 
 class ChannelStatus(str, enum.Enum):
@@ -24,7 +27,10 @@ class Channel(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "channels"
 
     owner_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     youtube_channel_id: Mapped[str | None] = mapped_column(
         String(64), unique=True, nullable=True, index=True
@@ -43,14 +49,23 @@ class Channel(Base, UUIDMixin, TimestampMixin):
     video_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     monetization_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-    # OAuth tokens (encrypted at rest in production)
+    # OAuth tokens — stored encrypted in production (see integrations/youtube.py)
     access_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     refresh_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     token_expiry: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     owner: Mapped["User"] = relationship("User", back_populates="channels")
-    videos: Mapped[list["Video"]] = relationship(
-        "Video", back_populates="channel", lazy="select"
+    topics: Mapped[list["Topic"]] = relationship(
+        "Topic", back_populates="channel", lazy="select"
+    )
+    briefs: Mapped[list["Brief"]] = relationship(
+        "Brief", back_populates="channel", lazy="select"
+    )
+    publications: Mapped[list["Publication"]] = relationship(
+        "Publication", back_populates="channel", lazy="select"
+    )
+    analytics_snapshots: Mapped[list["AnalyticsSnapshot"]] = relationship(
+        "AnalyticsSnapshot", back_populates="channel", lazy="select"
     )
 
     def __repr__(self) -> str:

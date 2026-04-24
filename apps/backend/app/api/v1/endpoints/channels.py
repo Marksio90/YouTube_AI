@@ -1,10 +1,10 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
 from app.schemas.channel import ChannelCreate, ChannelRead, ChannelUpdate
-from app.schemas.common import PaginatedResponse
+from app.schemas.common import PaginatedResponse, TaskResponse
 from app.services.channel import ChannelService
 
 router = APIRouter(prefix="/channels", tags=["channels"])
@@ -18,7 +18,7 @@ async def list_channels(
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[ChannelRead]:
     svc = ChannelService(db)
-    return await svc.list_for_user(str(current_user.id), page=page, page_size=page_size)
+    return await svc.list_for_user(current_user.id, page=page, page_size=page_size)
 
 
 @router.post("", response_model=ChannelRead, status_code=status.HTTP_201_CREATED)
@@ -31,11 +31,11 @@ async def create_channel(
 
 
 @router.get("/{channel_id}", response_model=ChannelRead)
-async def get_channel(channel_id: uuid.UUID, current_user: CurrentUser, db: DB) -> ChannelRead:
+async def get_channel(
+    channel_id: uuid.UUID, current_user: CurrentUser, db: DB
+) -> ChannelRead:
     svc = ChannelService(db)
     channel = await svc.get_owned(channel_id, owner_id=current_user.id)
-    if not channel:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
     return ChannelRead.model_validate(channel)
 
 
@@ -45,8 +45,6 @@ async def update_channel(
 ) -> ChannelRead:
     svc = ChannelService(db)
     channel = await svc.update(channel_id, payload, owner_id=current_user.id)
-    if not channel:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
     return ChannelRead.model_validate(channel)
 
 
@@ -55,6 +53,15 @@ async def delete_channel(
     channel_id: uuid.UUID, current_user: CurrentUser, db: DB
 ) -> None:
     svc = ChannelService(db)
-    deleted = await svc.delete(channel_id, owner_id=current_user.id)
-    if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+    await svc.delete(channel_id, owner_id=current_user.id)
+
+
+@router.post("/{channel_id}/sync-metrics", response_model=TaskResponse)
+async def sync_metrics(
+    channel_id: uuid.UUID, current_user: CurrentUser, db: DB
+) -> TaskResponse:
+    from app.tasks.youtube import enqueue_sync_metrics
+    svc = ChannelService(db)
+    channel = await svc.get_owned(channel_id, owner_id=current_user.id)
+    task_id = enqueue_sync_metrics(channel_id=str(channel.id))
+    return TaskResponse(task_id=task_id, status="pending")

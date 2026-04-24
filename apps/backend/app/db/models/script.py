@@ -9,7 +9,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from app.db.models.video import Video
+    from app.db.models.brief import Brief
+    from app.db.models.publication import Publication
 
 
 class ScriptTone(str, enum.Enum):
@@ -32,7 +33,16 @@ class Script(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "scripts"
 
     channel_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("channels.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("channels.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    brief_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("briefs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     hook: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -55,7 +65,10 @@ class Script(Base, UUIDMixin, TimestampMixin):
     compliance_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
-    videos: Mapped[list["Video"]] = relationship("Video", back_populates="script")
+    brief: Mapped["Brief | None"] = relationship("Brief", back_populates="scripts")
+    publications: Mapped[list["Publication"]] = relationship(
+        "Publication", back_populates="script"
+    )
 
     def __repr__(self) -> str:
         return f"<Script {self.title[:40]} v{self.version}>"
