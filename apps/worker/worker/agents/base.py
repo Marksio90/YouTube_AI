@@ -14,25 +14,23 @@ from __future__ import annotations
 import json
 import re
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import ClassVar, Generic, TypeVar
 
 import structlog
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
-from worker.agents.errors import AgentError, AgentExecutionError, AgentValidationError
-from worker.agents.providers.base import LLMProvider
+from worker.agents.errors import AgentError, AgentExecutionError
 from worker.agents.schemas import AgentInput, AgentOutput, AgentTrace, ExecutionStatus
 from worker.config import settings
+from worker.llm import (
+    LLMProvider,
+    Message,
+    ModelConfig,
+    Role,
+    get_provider,
+)
 
 InputT = TypeVar("InputT", bound=AgentInput)
 OutputT = TypeVar("OutputT", bound=AgentOutput)
-
-_RETRYABLE_EXCEPTIONS = (ConnectionError, TimeoutError, OSError)
 
 
 class BaseAgent(ABC, Generic[InputT, OutputT]):
@@ -55,8 +53,6 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
         model: str | None = None,
         force_mock: bool = False,
     ) -> None:
-        from worker.agents.providers import get_provider
-
         self._provider: LLMProvider = provider or get_provider()
         self._model: str = model or settings.llm_default_model
         self._force_mock: bool = force_mock
@@ -134,12 +130,6 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
 
     # ── protected helpers ──────────────────────────────────────────────────────
 
-    @retry(
-        retry=retry_if_exception_type(_RETRYABLE_EXCEPTIONS),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=20),
-        reraise=True,
-    )
     async def _execute_with_retry(self, inp: InputT) -> OutputT:
         return await self.execute(inp)
 
@@ -153,18 +143,18 @@ class BaseAgent(ABC, Generic[InputT, OutputT]):
     ) -> str:
         """
         Single LLM call through the provider. Updates token counters.
-        Always prefer _call_llm over calling self._provider directly.
+        Retry and timeout are handled inside the provider (worker.llm.BaseProvider).
         """
-        response = await self._provider.complete(
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            model=self._model,
-            temperature=temperature if temperature is not None else self.default_temperature,
-            max_tokens=settings.llm_max_tokens,
-            json_mode=json_mode,
+        config = (
+            ModelConfig.for_task(f"agent.{self.agent_name}")
+            .replace(
+                temperature=temperature if temperature is not None else self.default_temperature,
+                json_mode=json_mode,
+                model=self._model,
+            )
         )
+        messages = [Message.system(system), Message.user(user)]
+        response = await self._provider.generate_text(messages, config=config)
         self._last_input_tokens = response.input_tokens
         self._last_output_tokens = response.output_tokens
         return response.content
