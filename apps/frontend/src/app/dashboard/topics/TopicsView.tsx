@@ -74,7 +74,7 @@ export function TopicsView() {
           </Button>
         }
       />
-      <div className="rounded-xl border border-gray-800 bg-surface-raised overflow-hidden">
+      <div className="card overflow-hidden">
         {isLoading ? (
           <div className="p-5"><SkeletonCard rows={6} /></div>
         ) : isError ? (

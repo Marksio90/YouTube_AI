@@ -5,33 +5,39 @@ interface CardProps {
   className?: string;
   hover?: boolean;
   padding?: "none" | "sm" | "md" | "lg";
+  as?: "div" | "article" | "section";
 }
 
-const paddings = {
-  none: "",
-  sm:   "p-4",
-  md:   "p-5",
-  lg:   "p-6",
-};
+const paddings = { none: "", sm: "p-4", md: "p-5", lg: "p-6" };
 
-export function Card({ children, className, hover, padding = "md" }: CardProps) {
+export function Card({
+  children,
+  className,
+  hover,
+  padding = "md",
+  as: Tag = "div",
+}: CardProps) {
   return (
-    <div
+    <Tag
       className={cn(
-        "rounded-xl border border-gray-800 bg-gray-900",
-        "shadow-inner-border",
-        hover && "transition-colors hover:border-gray-700 hover:bg-gray-800/60 cursor-pointer",
+        "card",
         paddings[padding],
+        hover && "transition-colors cursor-pointer hover:border-gray-700/60 hover:bg-[#1c1c1f]",
         className
       )}
-      style={{ boxShadow: "inset 0 1px 0 0 rgba(255,255,255,0.04)" }}
     >
       {children}
-    </div>
+    </Tag>
   );
 }
 
-export function CardHeader({ children, className }: { children: React.ReactNode; className?: string }) {
+export function CardHeader({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div className={cn("flex items-center justify-between mb-4", className)}>
       {children}
@@ -39,8 +45,12 @@ export function CardHeader({ children, className }: { children: React.ReactNode;
   );
 }
 
-export function CardTitle({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <h3 className={cn("text-sm font-semibold text-gray-100", className)}>{children}</h3>
-  );
+export function CardTitle({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return <h3 className={cn("t-section", className)}>{children}</h3>;
 }

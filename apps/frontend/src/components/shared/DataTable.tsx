@@ -6,6 +6,7 @@ export interface Column<T> {
   render: (row: T) => React.ReactNode;
   className?: string;
   headerClassName?: string;
+  width?: string;
 }
 
 interface DataTableProps<T> {
@@ -14,19 +15,28 @@ interface DataTableProps<T> {
   keyFn: (row: T) => string;
   onRowClick?: (row: T) => void;
   className?: string;
+  stickyHeader?: boolean;
 }
 
-export function DataTable<T>({ columns, data, keyFn, onRowClick, className }: DataTableProps<T>) {
+export function DataTable<T>({
+  columns,
+  data,
+  keyFn,
+  onRowClick,
+  className,
+  stickyHeader,
+}: DataTableProps<T>) {
   return (
     <div className={cn("overflow-x-auto", className)}>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-gray-800">
+      <table className="w-full text-sm border-collapse">
+        <thead className={cn(stickyHeader && "sticky top-0 z-10 bg-[#18181b]")}>
+          <tr className="border-b border-[var(--border)]">
             {columns.map((col) => (
               <th
                 key={col.key}
+                style={col.width ? { width: col.width } : undefined}
                 className={cn(
-                  "py-3 px-4 text-left text-xs font-medium uppercase tracking-wider text-gray-500",
+                  "py-3 px-4 text-left t-label whitespace-nowrap",
                   col.headerClassName
                 )}
               >
@@ -35,20 +45,20 @@ export function DataTable<T>({ columns, data, keyFn, onRowClick, className }: Da
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-800/60">
+        <tbody>
           {data.map((row) => (
             <tr
               key={keyFn(row)}
               onClick={() => onRowClick?.(row)}
               className={cn(
-                "transition-colors",
-                onRowClick && "cursor-pointer hover:bg-gray-800/40"
+                "border-b border-[var(--border)] transition-colors",
+                onRowClick && "cursor-pointer hover:bg-surface-active"
               )}
             >
               {columns.map((col) => (
                 <td
                   key={col.key}
-                  className={cn("py-3 px-4 text-gray-300", col.className)}
+                  className={cn("py-3 px-4 text-gray-300 align-middle", col.className)}
                 >
                   {col.render(row)}
                 </td>

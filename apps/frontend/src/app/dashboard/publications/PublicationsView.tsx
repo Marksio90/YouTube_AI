@@ -82,7 +82,7 @@ export function PublicationsView() {
         title="Publications"
         description="Published and scheduled YouTube videos"
       />
-      <div className="rounded-xl border border-gray-800 bg-surface-raised overflow-hidden">
+      <div className="card overflow-hidden">
         {isLoading ? (
           <div className="p-5"><SkeletonCard rows={5} /></div>
         ) : isError ? (

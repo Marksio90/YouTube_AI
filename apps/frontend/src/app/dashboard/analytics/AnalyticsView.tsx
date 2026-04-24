@@ -108,8 +108,8 @@ export function AnalyticsView() {
       </div>
 
       {/* Views chart */}
-      <div className="rounded-xl border border-gray-800 bg-surface-raised p-5">
-        <h2 className="text-sm font-semibold text-gray-200 mb-4">Daily Views</h2>
+      <div className="card p-5">
+        <h2 className="t-section mb-4">Daily Views</h2>
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
@@ -132,8 +132,8 @@ export function AnalyticsView() {
       </div>
 
       {/* Revenue chart */}
-      <div className="rounded-xl border border-gray-800 bg-surface-raised p-5">
-        <h2 className="text-sm font-semibold text-gray-200 mb-4">Daily Revenue</h2>
+      <div className="card p-5">
+        <h2 className="t-section mb-4">Daily Revenue</h2>
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={chartData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>

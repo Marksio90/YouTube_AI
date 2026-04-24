@@ -2,42 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design Tokens ─────────────────────────────────────────────────────────── */
 @layer base {
   :root {
-    --sidebar-width: 220px;
-    --topbar-height: 56px;
+    --sidebar-width:  220px;
+    --topbar-height:  56px;
+    --radius-card:    12px;
+    --radius-sm:      8px;
+    --border:         rgba(255,255,255,0.07);
+    --shadow-card:    inset 0 1px 0 0 rgba(255,255,255,0.04);
   }
 
-  * { @apply border-gray-800; box-sizing: border-box; }
-
-  html { @apply antialiased; }
+  html  { @apply antialiased; }
 
   body {
-    @apply bg-gray-950 text-gray-50;
+    background-color: #09090b;   /* deeper than gray-950 */
+    @apply text-gray-100;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
   }
 
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  *, *::before, *::after { box-sizing: border-box; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar       { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { @apply bg-gray-700 rounded-full; }
   ::-webkit-scrollbar-thumb:hover { @apply bg-gray-600; }
 
-  ::selection { @apply bg-brand-800 text-brand-100; }
+  ::selection { @apply bg-brand-900 text-brand-100; }
 }
 
+/* ── Typography scale ──────────────────────────────────────────────────────── */
 @layer utilities {
-  .text-balance { text-wrap: balance; }
+  /* Page-level heading */
+  .t-page   { @apply text-lg font-semibold tracking-tight text-gray-100; }
+  /* Section / card heading */
+  .t-section { @apply text-sm font-semibold text-gray-200; }
+  /* Label above input or above stat */
+  .t-label  { @apply text-xs font-medium uppercase tracking-wider text-gray-500; }
+  /* Body copy */
+  .t-body   { @apply text-sm text-gray-300 leading-relaxed; }
+  /* Muted secondary text */
+  .t-muted  { @apply text-xs text-gray-500; }
+  /* Big metric number */
+  .t-metric { @apply text-3xl font-bold tracking-tight text-white tabular-nums; }
+  /* Monospace identifier */
+  .t-mono   { @apply font-mono text-xs text-gray-400; }
+}
 
-  .metric-value {
-    @apply text-3xl font-bold tracking-tight text-white tabular-nums;
+/* ── Surface / Card primitives ─────────────────────────────────────────────── */
+@layer utilities {
+  .surface        { background-color: #0f0f11; }
+  .surface-raised { background-color: #18181b; box-shadow: var(--shadow-card); }
+  .surface-overlay{ background-color: #1c1c1f; }
+
+  /* Standard card shell */
+  .card {
+    @apply rounded-[var(--radius-card)] border bg-[#18181b];
+    border-color: var(--border);
+    box-shadow: var(--shadow-card);
   }
 
+  /* Divider line matching the border token */
+  .ds-divider { border-color: var(--border); }
+}
+
+/* ── Interaction utilities ─────────────────────────────────────────────────── */
+@layer utilities {
   .focus-ring {
-    @apply outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950;
-  }
-
-  .card-surface {
-    @apply bg-gray-900 border border-gray-800 rounded-xl;
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60
+           focus-visible:ring-offset-1 focus-visible:ring-offset-[#0f0f11];
   }
 
   .truncate-2 {
@@ -45,5 +80,10 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  /* Overlay backdrop */
+  .backdrop-ds {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm;
   }
 }
