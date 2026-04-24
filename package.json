@@ -1,0 +1,28 @@
+{
+  "name": "ai-media-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Media Operating System — no-face YouTube monetization platform",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "turbo": "^2.3.3"
+  },
+  "workspaces": [
+    "apps/frontend",
+    "packages/*"
+  ]
+}
