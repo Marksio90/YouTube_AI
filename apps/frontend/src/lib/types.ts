@@ -250,6 +250,96 @@ export interface Recommendation {
   created_at: string;
 }
 
+// ── Monetization ─────────────────────────────────────────────────────────────
+
+export type RevenueSourceType = "ads" | "affiliate" | "products" | "sponsorship";
+export type AffiliatePlatformType = "amazon" | "impact" | "shareasale" | "cj" | "custom";
+export type CommissionType = "percentage" | "fixed";
+
+export interface RevenueStream {
+  id: string;
+  channel_id: string;
+  publication_id: string | null;
+  source: RevenueSourceType;
+  period_start: string;
+  period_end: string;
+  revenue_usd: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  rpm: number;
+  cpm: number;
+  commission_rate: number | null;
+  cost_usd: number;
+  roi_pct: number | null;
+  is_estimated: boolean;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface AffiliateLink {
+  id: string;
+  channel_id: string;
+  publication_id: string | null;
+  platform: AffiliatePlatformType;
+  name: string;
+  destination_url: string;
+  slug: string | null;
+  tracking_id: string | null;
+  commission_type: CommissionType;
+  commission_value: number;
+  total_clicks: number;
+  total_conversions: number;
+  total_revenue_usd: number;
+  is_active: boolean;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RevenueBySource {
+  source: RevenueSourceType;
+  revenue_usd: number;
+  share_pct: number;
+  roi_pct: number | null;
+}
+
+export interface ChannelRevenueOverview {
+  channel_id: string;
+  period_start: string;
+  period_end: string;
+  total_revenue_usd: number;
+  total_cost_usd: number;
+  overall_roi_pct: number | null;
+  by_source: RevenueBySource[];
+  top_streams: RevenueStream[];
+}
+
+export interface PublicationRevenueOverview {
+  publication_id: string;
+  channel_id: string;
+  total_revenue_usd: number;
+  total_cost_usd: number;
+  roi_pct: number | null;
+  by_source: RevenueBySource[];
+  streams: RevenueStream[];
+}
+
+export interface ROISummary {
+  channel_id: string;
+  period_start: string;
+  period_end: string;
+  total_revenue_usd: number;
+  total_cost_usd: number;
+  roi_pct: number | null;
+  revenue_per_video: number;
+  cost_per_video: number;
+  best_publication_id: string | null;
+  best_publication_roi: number | null;
+  worst_publication_id: string | null;
+  worst_publication_roi: number | null;
+}
+
 // ── Workflow ──────────────────────────────────────────────────────────────────
 
 export type RunStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
