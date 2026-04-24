@@ -67,8 +67,9 @@ app.conf.task_routes = {
     # Media generation
     "worker.tasks.media.*":            {"queue": "media"},
 
-    # Analytics ingestion
+    # Analytics ingestion + scoring
     "worker.tasks.analytics.*":        {"queue": "analytics"},
+    "worker.tasks.scoring.*":          {"queue": "analytics"},
 
     # YouTube + pipeline + workflow orchestration
     "worker.tasks.youtube.*":          {"queue": "default"},
@@ -96,6 +97,18 @@ app.conf.beat_schedule = {
         "task": "worker.tasks.recommendations.generate_all_channels",
         "schedule": crontab(hour=6, minute=0, day_of_week=2),
         "options": {"queue": "ai"},
+    },
+    # Compute performance scores daily at 04:00 UTC (after analytics sync)
+    "daily-score-compute": {
+        "task": "worker.tasks.scoring.compute_all_scores",
+        "schedule": crontab(hour=4, minute=0),
+        "options": {"queue": "analytics"},
+    },
+    # Generate growth recommendations daily at 05:00 UTC (after scores)
+    "daily-recommendations-generate": {
+        "task": "worker.tasks.scoring.generate_all_recommendations",
+        "schedule": crontab(hour=5, minute=0),
+        "options": {"queue": "analytics"},
     },
 }
 
@@ -127,5 +140,6 @@ import worker.tasks.analytics      # noqa: E402, F401
 import worker.tasks.media          # noqa: E402, F401
 import worker.tasks.pipeline       # noqa: E402, F401
 import worker.tasks.recommendations  # noqa: E402, F401
+import worker.tasks.scoring        # noqa: E402, F401
 import worker.tasks.topics         # noqa: E402, F401
 import worker.tasks.youtube        # noqa: E402, F401

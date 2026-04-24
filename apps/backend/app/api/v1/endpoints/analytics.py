@@ -1,19 +1,29 @@
 import uuid
 from datetime import date
+from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Path
 
 from app.api.v1.deps import CurrentUser, DB
+from app.core.exceptions import NotFoundError
 from app.schemas.analytics import (
     AnalyticsAggregate,
     AnalyticsSnapshotCreate,
     AnalyticsSnapshotRead,
+    ChannelRankingResponse,
+    PerformanceScoreRead,
+    RecommendationActionRequest,
+    RecommendationRead,
+    TopicRankingResponse,
 )
 from app.schemas.common import TaskResponse
 from app.services.analytics import AnalyticsService
+from app.services.scoring import ScoringService
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
+
+# ── Snapshots ─────────────────────────────────────────────────────────────────
 
 @router.get("/channels/{channel_id}", response_model=AnalyticsAggregate)
 async def channel_analytics(
@@ -58,18 +68,241 @@ async def sync_channel_analytics(
     current_user: CurrentUser,
     db: DB,
 ) -> TaskResponse:
-    from app.tasks.analytics import enqueue_sync_analytics
     from app.repositories.channel import ChannelRepository
-    from app.core.exceptions import NotFoundError
-    import datetime
+    import datetime as dt
 
     repo = ChannelRepository(db)
     channel = await repo.get_owned(channel_id, owner_id=current_user.id)
     if not channel:
         raise NotFoundError("Channel not found or access denied")
 
-    task_id = enqueue_sync_analytics(
-        channel_id=str(channel_id),
-        date_str=datetime.date.today().isoformat(),
+    from worker.tasks.analytics import sync_channel
+    task = sync_channel.apply_async(
+        kwargs={"channel_id": str(channel_id), "date": dt.date.today().isoformat()},
+        queue="analytics",
     )
-    return TaskResponse(task_id=task_id, status="pending")
+    return TaskResponse(task_id=task.id, status="pending")
+
+
+# ── Performance Scores ────────────────────────────────────────────────────────
+
+@router.get(
+    "/scores/channels/{channel_id}",
+    response_model=PerformanceScoreRead,
+    summary="Get or compute channel performance score",
+)
+async def channel_score(
+    channel_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+    period: int = Query(28, ge=7, le=90),
+) -> PerformanceScoreRead:
+    svc = ScoringService(db)
+    score = await svc.score_channel(
+        channel_id, owner_id=current_user.id, period_days=period
+    )
+    await db.commit()
+    return PerformanceScoreRead.from_orm_with_dims(score)
+
+
+@router.get(
+    "/scores/publications/{publication_id}",
+    response_model=PerformanceScoreRead,
+    summary="Get or compute publication performance score",
+)
+async def publication_score(
+    publication_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+    period: int = Query(28, ge=7, le=90),
+) -> PerformanceScoreRead:
+    from app.repositories.publication import PublicationRepository
+
+    pub_repo = PublicationRepository(db)
+    pub = await pub_repo.get(publication_id)
+    if not pub:
+        raise NotFoundError("Publication not found")
+
+    svc = ScoringService(db)
+    score = await svc.score_publication(
+        publication_id, channel_id=pub.channel_id, period_days=period
+    )
+    await db.commit()
+    return PerformanceScoreRead.from_orm_with_dims(score)
+
+
+@router.post(
+    "/scores/channels/{channel_id}/compute",
+    response_model=TaskResponse,
+    summary="Enqueue score computation for a channel",
+)
+async def enqueue_channel_score(
+    channel_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+    period: int = Query(28, ge=7, le=90),
+) -> TaskResponse:
+    from app.repositories.channel import ChannelRepository
+
+    repo = ChannelRepository(db)
+    channel = await repo.get_owned(channel_id, owner_id=current_user.id)
+    if not channel:
+        raise NotFoundError("Channel not found or access denied")
+
+    from worker.tasks.scoring import compute_channel_score
+    task = compute_channel_score.apply_async(
+        kwargs={
+            "channel_id": str(channel_id),
+            "owner_id": str(current_user.id),
+            "period_days": period,
+        },
+        queue="analytics",
+    )
+    return TaskResponse(task_id=task.id, status="pending")
+
+
+# ── Rankings ──────────────────────────────────────────────────────────────────
+
+@router.get(
+    "/rankings/topics",
+    response_model=TopicRankingResponse,
+    summary="Topic ranking by composite performance score",
+)
+async def topic_ranking(
+    current_user: CurrentUser,
+    db: DB,
+    period: int = Query(28, ge=7, le=90),
+) -> TopicRankingResponse:
+    svc = ScoringService(db)
+    return await svc.topic_ranking(current_user.id, period_days=period)
+
+
+@router.get(
+    "/rankings/channels",
+    response_model=ChannelRankingResponse,
+    summary="Channel ranking across all owner channels",
+)
+async def channel_ranking(
+    current_user: CurrentUser,
+    db: DB,
+    period: int = Query(28, ge=7, le=90),
+) -> ChannelRankingResponse:
+    svc = ScoringService(db)
+    return await svc.channel_ranking(current_user.id, period_days=period)
+
+
+# ── Recommendations ───────────────────────────────────────────────────────────
+
+@router.get(
+    "/recommendations/{channel_id}",
+    response_model=list[RecommendationRead],
+    summary="List pending growth recommendations for a channel",
+)
+async def list_recommendations(
+    channel_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+    status: str = Query("pending", pattern="^(pending|applied|dismissed|snoozed)$"),
+    limit: int = Query(50, ge=1, le=100),
+) -> list[RecommendationRead]:
+    svc = ScoringService(db)
+    recs = await svc.list_recommendations(channel_id, status=status, limit=limit)
+    return [RecommendationRead.model_validate(r) for r in recs]
+
+
+@router.post(
+    "/recommendations/{channel_id}/generate",
+    response_model=TaskResponse,
+    summary="Trigger rule-based recommendation generation for a channel",
+)
+async def generate_recommendations(
+    channel_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+) -> TaskResponse:
+    from app.repositories.channel import ChannelRepository
+
+    repo = ChannelRepository(db)
+    channel = await repo.get_owned(channel_id, owner_id=current_user.id)
+    if not channel:
+        raise NotFoundError("Channel not found or access denied")
+
+    from worker.tasks.scoring import generate_recommendations as _task
+    task = _task.apply_async(
+        kwargs={"channel_id": str(channel_id), "force": True},
+        queue="analytics",
+    )
+    return TaskResponse(task_id=task.id, status="pending")
+
+
+@router.post(
+    "/recommendations/{channel_id}/generate-sync",
+    response_model=list[RecommendationRead],
+    summary="Run rule-based recommendations synchronously (dev/small channels)",
+)
+async def generate_recommendations_sync(
+    channel_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+    period: int = Query(28, ge=7, le=90),
+) -> list[RecommendationRead]:
+    from app.repositories.channel import ChannelRepository
+
+    repo = ChannelRepository(db)
+    channel = await repo.get_owned(channel_id, owner_id=current_user.id)
+    if not channel:
+        raise NotFoundError("Channel not found or access denied")
+
+    svc = ScoringService(db)
+    recs = await svc.generate_recommendations(
+        channel_id, period_days=period, replace_existing=True
+    )
+    await db.commit()
+    return [RecommendationRead.model_validate(r) for r in recs]
+
+
+@router.post(
+    "/recommendations/action/{rec_id}/apply",
+    response_model=RecommendationRead,
+)
+async def apply_recommendation(
+    rec_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+    payload: RecommendationActionRequest | None = None,
+) -> RecommendationRead:
+    svc = ScoringService(db)
+    rec = await svc.action_recommendation(rec_id, action="apply")
+    await db.commit()
+    return RecommendationRead.model_validate(rec)
+
+
+@router.post(
+    "/recommendations/action/{rec_id}/dismiss",
+    response_model=RecommendationRead,
+)
+async def dismiss_recommendation(
+    rec_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+    payload: RecommendationActionRequest | None = None,
+) -> RecommendationRead:
+    svc = ScoringService(db)
+    rec = await svc.action_recommendation(rec_id, action="dismiss")
+    await db.commit()
+    return RecommendationRead.model_validate(rec)
+
+
+@router.post(
+    "/recommendations/action/{rec_id}/snooze",
+    response_model=RecommendationRead,
+)
+async def snooze_recommendation(
+    rec_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+) -> RecommendationRead:
+    svc = ScoringService(db)
+    rec = await svc.action_recommendation(rec_id, action="snooze")
+    await db.commit()
+    return RecommendationRead.model_validate(rec)
