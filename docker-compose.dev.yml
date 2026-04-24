@@ -1,0 +1,45 @@
+version: "3.9"
+
+# Development overrides — hot reload, volume mounts, debug ports
+services:
+  backend:
+    build:
+      target: development
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/app
+    volumes:
+      - ./apps/backend:/app
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: DEBUG
+
+  worker:
+    build:
+      target: development
+    command: watchmedo auto-restart --directory=./worker --pattern="*.py" --recursive -- celery -A worker.celery_app worker --loglevel=debug --concurrency=2 -Q default,ai,pipeline
+    volumes:
+      - ./apps/worker:/app
+
+  worker_beat:
+    build:
+      target: development
+    volumes:
+      - ./apps/worker:/app
+
+  frontend:
+    build:
+      target: development
+    command: pnpm dev
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      NODE_ENV: development
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
