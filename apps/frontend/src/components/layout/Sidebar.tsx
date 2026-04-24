@@ -8,6 +8,7 @@ import {
   FileText,
   Youtube,
   BarChart3,
+  Banknote,
   GitBranch,
   Settings,
   Zap,
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/scripts",      label: "Scripts",       icon: FileText },
   { href: "/dashboard/publications", label: "Publications",  icon: Youtube },
   { href: "/dashboard/analytics",    label: "Analytics",     icon: BarChart3 },
+  { href: "/dashboard/monetization", label: "Monetization",  icon: Banknote },
   { href: "/dashboard/workflows",    label: "Workflows",     icon: GitBranch },
 ];
 
