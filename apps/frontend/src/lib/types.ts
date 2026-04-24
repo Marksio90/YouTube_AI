@@ -150,6 +150,106 @@ export interface ChannelAnalytics {
   snapshots: AnalyticsSnapshot[];
 }
 
+// ── Performance Scores ────────────────────────────────────────────────────────
+
+export interface DimensionalScores {
+  view_score: number;
+  ctr_score: number;
+  retention_score: number;
+  revenue_score: number;
+  growth_score: number;
+}
+
+export interface PerformanceScore {
+  id: string;
+  channel_id: string;
+  publication_id: string | null;
+  period_days: number;
+  score: number;
+  dimensions: DimensionalScores;
+  raw_views: number;
+  raw_ctr: number;
+  raw_retention: number;
+  raw_rpm: number;
+  raw_revenue: number;
+  raw_subs_net: number;
+  rank_in_channel: number | null;
+  rank_overall: number | null;
+  computed_at: string;
+}
+
+// ── Rankings ──────────────────────────────────────────────────────────────────
+
+export type TopicRecommendation = "pursue" | "consider" | "monitor" | "kill";
+
+export interface TopicRankEntry {
+  topic_id: string;
+  title: string;
+  score: number;
+  trend_score: number | null;
+  publication_count: number;
+  avg_views: number;
+  avg_perf_score: number;
+  total_revenue: number;
+  recommendation: TopicRecommendation;
+}
+
+export interface ChannelRankEntry {
+  channel_id: string;
+  name: string;
+  niche: string;
+  score: number;
+  rank: number;
+  total_views: number;
+  total_revenue: number;
+  avg_ctr: number;
+  net_subscribers: number;
+}
+
+export interface TopicRankingResponse {
+  period_days: number;
+  entries: TopicRankEntry[];
+}
+
+export interface ChannelRankingResponse {
+  period_days: number;
+  entries: ChannelRankEntry[];
+}
+
+// ── Recommendations ───────────────────────────────────────────────────────────
+
+export type RecommendationType =
+  | "improve_thumbnail"
+  | "improve_hook"
+  | "repeat_format"
+  | "kill_topic"
+  | "scale_topic"
+  | "localize";
+
+export type RecommendationPriority = "critical" | "high" | "medium" | "low";
+export type RecommendationStatus = "pending" | "applied" | "dismissed" | "snoozed";
+
+export interface Recommendation {
+  id: string;
+  channel_id: string;
+  publication_id: string | null;
+  topic_id: string | null;
+  rec_type: RecommendationType;
+  priority: RecommendationPriority;
+  status: RecommendationStatus;
+  source: "rule" | "ai";
+  title: string;
+  body: string;
+  rationale: string;
+  metric_key: string | null;
+  metric_current: number | null;
+  metric_target: number | null;
+  impact_label: string | null;
+  expires_at: string | null;
+  actioned_at: string | null;
+  created_at: string;
+}
+
 // ── Workflow ──────────────────────────────────────────────────────────────────
 
 export type RunStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
