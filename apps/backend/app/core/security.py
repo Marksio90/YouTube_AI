@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
@@ -75,7 +75,7 @@ def decode_token(token: str, *, expected_type: str | None = None) -> dict[str, A
             audience=settings.jwt_audience,
             options={"verify_aud": True, "verify_iss": True},
         )
-    except JWTError as exc:
+    except jwt.PyJWTError as exc:
         raise TokenValidationError("Invalid token") from exc
 
     token_type = payload.get("type")
