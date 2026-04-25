@@ -16,6 +16,8 @@ class WorkerSettings(BaseSettings):
 
     # ── AI / LLM ─────────────────────────────────────────────────────────────
     openai_api_key: str = ""
+    elevenlabs_api_key: str = ""
+    tts_provider_default: str = "openai"  # "openai" | "elevenlabs"
     llm_default_model: str = "gpt-4o-mini"
     llm_max_tokens: int = 8192
     llm_temperature: float = 0.7

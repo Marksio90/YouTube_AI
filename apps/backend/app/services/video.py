@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.channel import Channel
 from app.db.models.video import Video
 from app.schemas.common import PaginatedResponse
-from app.schemas.video import VideoCreate, VideoUpdate
+from app.schemas.common import TaskResponse
+from app.schemas.video import VideoCreate, VideoRenderRequest, VideoUpdate
 
 
 class VideoService:
@@ -81,3 +82,25 @@ class VideoService:
         await self.db.flush()
         await self.db.refresh(video)
         return video
+
+    async def enqueue_render(
+        self,
+        video_id: uuid.UUID,
+        payload: VideoRenderRequest,
+        *,
+        user_id: uuid.UUID,
+    ) -> TaskResponse:
+        from app.tasks.media import enqueue_render_video
+
+        video = await self.get_owned(video_id, user_id=user_id)
+        if not video:
+            raise ValueError("Video not found")
+
+        task_id = enqueue_render_video(
+            video_id=str(video_id),
+            audio_url=payload.audio_url,
+            scene_plan=[s.model_dump() for s in payload.scene_plan],
+            assets=[a.model_dump() for a in payload.assets],
+            engine=payload.engine,
+        )
+        return TaskResponse(task_id=task_id, status="pending")

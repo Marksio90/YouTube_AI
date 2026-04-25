@@ -32,6 +32,26 @@ resources:
   - frontend/service.yaml
   - frontend/hpa.yaml
 
+
+  # ── Observability ───────────────────────────────────────────────────────
+  - monitoring/prometheus-configmap.yaml
+  - monitoring/prometheus-alerts-configmap.yaml
+  - monitoring/prometheus-deployment.yaml
+  - monitoring/exporters.yaml
+  - monitoring/worker-metrics-service.yaml
+  - monitoring/grafana-dashboards-configmap.yaml
+  - monitoring/grafana-deployment.yaml
+
+
+  # ── Logging (ELK) ───────────────────────────────────────────────────────
+  - logging/elasticsearch.yaml
+  - logging/logstash.yaml
+  - logging/filebeat.yaml
+  - logging/kibana.yaml
+
+  # ── Autoscaling adapter ─────────────────────────────────────────────────
+  - autoscaling/prometheus-adapter.yaml
+
   # ── Routing ───────────────────────────────────────────────────────────────
   - ingress/ingress.yaml
 

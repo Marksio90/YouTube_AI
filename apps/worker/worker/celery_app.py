@@ -3,8 +3,10 @@ from celery.schedules import crontab
 from celery.signals import setup_logging, worker_ready
 
 from worker.config import settings
+from worker.monitoring import start_metrics_server
 
 app = Celery("ai_media_os")
+start_metrics_server(app)
 
 # ── Core config ───────────────────────────────────────────────────────────────
 app.conf.update(

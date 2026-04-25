@@ -33,6 +33,13 @@ class ScriptUpdate(BaseModel):
     status: str | None = None
 
 
+class ScriptAudioGenerateRequest(BaseModel):
+    voice_id: str = Field(default="alloy", min_length=2, max_length=100)
+    provider: str = Field(default="openai", pattern="^(openai|elevenlabs)$")
+    tempo: float = Field(default=1.0, ge=0.5, le=2.0)
+    tone: float = Field(default=0.0, ge=-12.0, le=12.0)
+
+
 class ScriptRead(BaseModel):
     id: uuid.UUID
     channel_id: uuid.UUID
@@ -47,6 +54,10 @@ class ScriptRead(BaseModel):
     seo_score: float | None
     compliance_score: float | None
     version: int
+    audio_url: str | None
+    audio_duration_seconds: float | None
+    audio_provider: str | None
+    audio_voice_id: str | None
     created_at: datetime
     updated_at: datetime
 

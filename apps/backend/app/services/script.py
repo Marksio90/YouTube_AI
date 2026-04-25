@@ -7,7 +7,12 @@ from app.db.models.script import Script
 from app.repositories.channel import ChannelRepository
 from app.repositories.script import ScriptRepository
 from app.schemas.common import PaginatedResponse, TaskResponse
-from app.schemas.script import ScriptCreate, ScriptGenerateRequest, ScriptUpdate
+from app.schemas.script import (
+    ScriptAudioGenerateRequest,
+    ScriptCreate,
+    ScriptGenerateRequest,
+    ScriptUpdate,
+)
 
 
 class ScriptService:
@@ -88,3 +93,22 @@ class ScriptService:
 
     async def status_summary(self, owner_id: uuid.UUID) -> dict[str, int]:
         return await self.repo.count_by_status(owner_id)
+
+    async def generate_audio(
+        self,
+        script_id: uuid.UUID,
+        payload: ScriptAudioGenerateRequest,
+        *,
+        owner_id: uuid.UUID,
+    ) -> TaskResponse:
+        from app.tasks.ai import enqueue_generate_audio
+
+        await self.get_for_user(script_id, owner_id=owner_id)
+        task_id = enqueue_generate_audio(
+            script_id=str(script_id),
+            provider=payload.provider,
+            voice_id=payload.voice_id,
+            tempo=payload.tempo,
+            tone=payload.tone,
+        )
+        return TaskResponse(task_id=task_id, status="pending")

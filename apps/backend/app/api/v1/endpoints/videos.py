@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
 from app.schemas.common import PaginatedResponse, TaskResponse
-from app.schemas.video import VideoCreate, VideoRead, VideoUpdate
+from app.schemas.video import VideoCreate, VideoRead, VideoRenderRequest, VideoUpdate
 from app.services.video import VideoService
 
 router = APIRouter(prefix="/videos", tags=["videos"])
@@ -67,3 +67,17 @@ async def publish_video(video_id: uuid.UUID, current_user: CurrentUser, db: DB) 
 
     task = upload_video_task.delay(str(video_id))
     return TaskResponse(task_id=task.id, status="pending")
+
+
+@router.post("/{video_id}/render", response_model=TaskResponse)
+async def render_video(
+    video_id: uuid.UUID,
+    payload: VideoRenderRequest,
+    current_user: CurrentUser,
+    db: DB,
+) -> TaskResponse:
+    svc = VideoService(db)
+    try:
+        return await svc.enqueue_render(video_id, payload, user_id=current_user.id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Video not found")

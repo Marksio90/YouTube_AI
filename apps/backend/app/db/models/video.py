@@ -59,6 +59,7 @@ class Video(Base, UUIDMixin, TimestampMixin):
         default=VideoVisibility.private,
     )
     thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    render_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     scheduled_at: Mapped[str | None] = mapped_column(DateTime(timezone=True), nullable=True)
     published_at: Mapped[str | None] = mapped_column(DateTime(timezone=True), nullable=True)

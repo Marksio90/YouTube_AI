@@ -141,6 +141,30 @@ class AudioJob(BaseWorkflowJob):
         return out
 
 
+class RenderJob(BaseWorkflowJob):
+    """Build timeline and render video from audio + scene assets."""
+
+    step_type = "render"
+    celery_task_name = "worker.tasks.media.render_video"
+    celery_queue = "media"
+
+    def build_payload(self, ctx: WorkflowContext, step_config: dict) -> dict:
+        return {
+            "video_id": ctx.require("video_id", self.step_type),
+            "audio_url": ctx.require("audio_url", self.step_type),
+            "scene_plan": step_config.get("scene_plan") or ctx.require("scene_plan", self.step_type),
+            "assets": step_config.get("assets") or ctx.get("assets") or [],
+            "engine": step_config.get("engine") or ctx.get("engine") or "mock-compositor-v1",
+        }
+
+    def extract_output(self, result: dict) -> dict:
+        out = {}
+        for k in ("video_url", "media_url", "duration_seconds", "timeline", "engine"):
+            if k in result:
+                out[k] = result[k]
+        return out
+
+
 class VisualsJob(BaseWorkflowJob):
     """Generate background visuals / B-roll imagery for the video."""
 
@@ -208,7 +232,7 @@ class PublishJob(BaseWorkflowJob):
     """Upload the video to YouTube and create the Publication record."""
 
     step_type        = "publication"
-    celery_task_name = "worker.tasks.youtube.upload_video"
+    celery_task_name = "worker.tasks.youtube.publish_video_pipeline"
     celery_queue     = "default"
 
     def build_payload(self, ctx: WorkflowContext, step_config: dict) -> dict:
@@ -217,12 +241,12 @@ class PublishJob(BaseWorkflowJob):
             raise ContextKeyMissingError("publication_id", self.step_type)
         payload: dict = {
             "publication_id": pub_id,
-            "privacy_status": step_config.get("privacy_status", "private"),
+            "media_url": step_config.get("media_url") or ctx.get("media_url") or ctx.require("audio_url", self.step_type),
+            "visibility": step_config.get("privacy_status", "private"),
         }
-        # Pass through enrichment data if available
-        for k in ("audio_url", "thumbnail_url"):
+        for k in ("audio_url", "thumbnail_url", "optimized_title", "optimized_description", "tags"):
             if ctx.get(k):
-                payload[k] = ctx.get(k)
+                payload[k.replace("optimized_", "")] = ctx.get(k)
         return payload
 
     def extract_output(self, result: dict) -> dict:
@@ -282,6 +306,7 @@ JOB_REGISTRY: dict[str, type[BaseWorkflowJob]] = {
     "script":      ScriptJob,
     "compliance":  ComplianceJob,
     "audio":       AudioJob,
+    "render":      RenderJob,
     "visuals":     VisualsJob,
     "thumbnail":   ThumbnailJob,
     "metadata":    MetadataJob,

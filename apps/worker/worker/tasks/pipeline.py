@@ -29,8 +29,9 @@ _STEP_TO_TASK = {
     "check_compliance":   ("worker.tasks.ai.check_compliance",   "high"),
     "discover_topics":    ("worker.tasks.topics.discover_topics", "ai"),
     "generate_audio":     ("worker.tasks.media.generate_audio",  "media"),
+    "render_video":       ("worker.tasks.media.render_video",    "media"),
     "generate_thumbnail": ("worker.tasks.media.generate_thumbnail", "media"),
-    "upload_video":       ("worker.tasks.youtube.upload_video",  "default"),
+    "upload_video":       ("worker.tasks.youtube.publish_video_pipeline",  "default"),
 }
 
 
@@ -189,8 +190,24 @@ def _build_kwargs(step_type: str, config: dict, context: dict) -> dict:
         "check_compliance":   lambda m: {"script_id": m["script_id"]},
         "discover_topics":    lambda m: {"channel_id": m["channel_id"], "count": m.get("count", 10)},
         "generate_audio":     lambda m: {"script_id": m["script_id"], "voice_id": m.get("voice_id", "alloy")},
+        "render_video":       lambda m: {
+            "video_id": m["video_id"],
+            "audio_url": m["audio_url"],
+            "scene_plan": m["scene_plan"],
+            "assets": m.get("assets", []),
+            "engine": m.get("engine", "mock-compositor-v1"),
+        },
         "generate_thumbnail": lambda m: {"publication_id": m["publication_id"]},
-        "upload_video":       lambda m: {"publication_id": m["publication_id"]},
+        "upload_video":       lambda m: {
+            "publication_id": m["publication_id"],
+            "media_url": m.get("media_url") or m["audio_url"],
+            "audio_url": m.get("audio_url"),
+            "thumbnail_url": m.get("thumbnail_url"),
+            "title": m.get("title") or m.get("optimized_title"),
+            "description": m.get("description") or m.get("optimized_description"),
+            "tags": m.get("tags", []),
+            "visibility": m.get("visibility", "private"),
+        },
     }
     builder = lookup.get(step_type)
     return builder(merged) if builder else merged
