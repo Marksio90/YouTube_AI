@@ -58,8 +58,10 @@ class Settings(BaseSettings):
 
     # ── Auth ──────────────────────────────────────────────────────────────────
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
+    jwt_issuer: str = "ai-media-os-backend"
+    jwt_audience: str = "ai-media-os-clients"
 
     # ── Logging ───────────────────────────────────────────────────────────────
     log_level: str = "INFO"
