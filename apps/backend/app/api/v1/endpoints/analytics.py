@@ -76,12 +76,66 @@ async def sync_channel_analytics(
     if not channel:
         raise NotFoundError("Channel not found or access denied")
 
-    from worker.tasks.analytics import sync_channel
-    task = sync_channel.apply_async(
-        kwargs={"channel_id": str(channel_id), "date": dt.date.today().isoformat()},
-        queue="analytics",
+    from app.tasks.ai import enqueue_sync_channel
+    task_id = enqueue_sync_channel(
+        channel_id=str(channel_id),
+        date=dt.date.today().isoformat(),
     )
-    return TaskResponse(task_id=task.id, status="pending")
+    return TaskResponse(task_id=task_id, status="queued")
+
+
+@router.post(
+    "/sync/channels/{channel_id}/backfill",
+    response_model=TaskResponse,
+    status_code=202,
+    summary="Backfill last N days of analytics for a channel and its videos",
+)
+async def backfill_channel_analytics(
+    channel_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+    days: int = Query(28, ge=1, le=365),
+    include_publications: bool = Query(True),
+) -> TaskResponse:
+    from app.repositories.channel import ChannelRepository
+    repo = ChannelRepository(db)
+    channel = await repo.get_owned(channel_id, owner_id=current_user.id)
+    if not channel:
+        raise NotFoundError("Channel not found or access denied")
+
+    from app.tasks.ai import enqueue_backfill_channel
+    task_id = enqueue_backfill_channel(
+        channel_id=str(channel_id),
+        days=days,
+        include_publications=include_publications,
+    )
+    return TaskResponse(task_id=task_id, status="queued")
+
+
+@router.post(
+    "/sync/publications/{publication_id}",
+    response_model=TaskResponse,
+    status_code=202,
+    summary="Trigger analytics sync for a single publication",
+)
+async def sync_publication_analytics(
+    publication_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DB,
+    sync_date: date = Query(
+        default=None,
+        description="Date to sync (default: yesterday)",
+    ),
+) -> TaskResponse:
+    import datetime as dt
+    d = sync_date.isoformat() if sync_date else (dt.date.today() - dt.timedelta(days=1)).isoformat()
+
+    from app.tasks.ai import enqueue_sync_publication
+    task_id = enqueue_sync_publication(
+        publication_id=str(publication_id),
+        date=d,
+    )
+    return TaskResponse(task_id=task_id, status="queued")
 
 
 # ── Performance Scores ────────────────────────────────────────────────────────

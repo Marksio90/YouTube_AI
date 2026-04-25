@@ -102,10 +102,16 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour=6, minute=0, day_of_week=2),
         "options": {"queue": "ai"},
     },
-    # Compute performance scores daily at 04:00 UTC (after analytics sync)
+    # Sync per-video analytics daily at 04:00 UTC (after channel sync at 03:15)
+    "daily-publication-sync": {
+        "task": "worker.tasks.analytics.sync_all_publications",
+        "schedule": crontab(hour=4, minute=0),
+        "options": {"queue": "analytics"},
+    },
+    # Compute performance scores daily at 04:30 UTC (after analytics sync)
     "daily-score-compute": {
         "task": "worker.tasks.scoring.compute_all_scores",
-        "schedule": crontab(hour=4, minute=0),
+        "schedule": crontab(hour=4, minute=30),
         "options": {"queue": "analytics"},
     },
     # Generate growth recommendations daily at 05:00 UTC (after scores)
@@ -154,3 +160,4 @@ import worker.tasks.recommendations  # noqa: E402, F401
 import worker.tasks.scoring        # noqa: E402, F401
 import worker.tasks.topics         # noqa: E402, F401
 import worker.tasks.youtube        # noqa: E402, F401
+import worker.tasks.optimization   # noqa: E402, F401
