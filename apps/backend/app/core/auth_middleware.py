@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException, Request, Response, status
 
-from app.core.security import decode_token
+from app.core.security import TokenValidationError, decode_token
 
 PUBLIC_PATHS = {
     "/api/v1/auth/login",
@@ -26,8 +26,8 @@ async def auth_middleware(request: Request, call_next) -> Response:  # type: ign
 
     token = auth_header.removeprefix("Bearer ").strip()
     try:
-        token_data = decode_token(token)
-    except ValueError as exc:
+        token_data = decode_token(token, expected_type="access")
+    except TokenValidationError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
 
     if token_data.get("type") != "access":

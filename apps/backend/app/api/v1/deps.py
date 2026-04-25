@@ -1,10 +1,11 @@
-from typing import Annotated, Callable
+from collections.abc import Callable
+from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import decode_token
+from app.core.security import TokenValidationError, decode_token
 from app.db.models.user import User, UserRole
 from app.db.session import get_db
 from app.services.user import UserService
@@ -30,8 +31,8 @@ async def get_current_user(
                 detail="Could not validate credentials",
             )
         try:
-            token_data = decode_token(credentials.credentials)
-        except ValueError:
+            token_data = decode_token(credentials.credentials, expected_type="access")
+        except TokenValidationError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
