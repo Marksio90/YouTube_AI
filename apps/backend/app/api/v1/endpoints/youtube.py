@@ -48,7 +48,14 @@ async def youtube_callback(
     state: str = Query(...),
 ) -> YouTubeCallbackResponse:
     try:
-        state_data = jwt.decode(state, settings.secret_key, algorithms=[settings.jwt_algorithm])
+        state_data = jwt.decode(
+            state,
+            settings.secret_key,
+            algorithms=[settings.jwt_algorithm],
+            audience="youtube-oauth-state",
+            issuer=settings.jwt_issuer,
+            options={"require": ["exp", "aud", "iss", "type"]},
+        )
     except jwt.PyJWTError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state")
 
