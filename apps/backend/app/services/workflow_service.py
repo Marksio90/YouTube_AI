@@ -18,9 +18,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 import structlog
-from celery import Celery
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.celery import send_task
 from app.core.exceptions import NotFoundError, PermissionDeniedError
 from app.db.models.workflow import (
     JobStatus,
@@ -44,11 +44,6 @@ log = structlog.get_logger(__name__)
 
 # Terminal statuses — further transitions require explicit user action
 _RUN_TERMINAL = frozenset({RunStatus.completed, RunStatus.cancelled})
-
-
-def _celery_app() -> Celery:
-    from worker.celery_app import app
-    return app
 
 
 class WorkflowService:
@@ -87,8 +82,8 @@ class WorkflowService:
             },
         )
 
-        celery_task = _celery_app().send_task(
-            "worker.tasks.workflow.run_workflow",
+        celery_task = send_task(
+            task_name="worker.tasks.workflow.run_workflow",
             kwargs={"run_id": str(run.id)},
             queue="default",
         )
@@ -177,8 +172,8 @@ class WorkflowService:
             run_id=run_id, event_type="manual.resume", actor=actor,
         )
 
-        celery_task = _celery_app().send_task(
-            "worker.tasks.workflow.resume_workflow",
+        celery_task = send_task(
+            task_name="worker.tasks.workflow.resume_workflow",
             kwargs={"run_id": str(run_id)},
             queue="default",
         )
@@ -199,8 +194,8 @@ class WorkflowService:
             run_id=run_id, event_type="manual.cancel", actor=actor,
         )
         # Also signal the running Celery task via cancel_workflow
-        _celery_app().send_task(
-            "worker.tasks.workflow.cancel_workflow",
+        send_task(
+            task_name="worker.tasks.workflow.cancel_workflow",
             kwargs={"run_id": str(run_id), "actor": actor},
             queue="high",
         )
@@ -237,8 +232,8 @@ class WorkflowService:
             data={"reset_context": payload.reset_context},
         )
 
-        celery_task = _celery_app().send_task(
-            "worker.tasks.workflow.run_workflow",
+        celery_task = send_task(
+            task_name="worker.tasks.workflow.run_workflow",
             kwargs={"run_id": str(run_id)},
             queue="default",
         )
@@ -285,8 +280,8 @@ class WorkflowService:
         if run.status not in (RunStatus.running,):
             await self._run_repo.set_status(run, RunStatus.running)
 
-        celery_task = _celery_app().send_task(
-            "worker.tasks.workflow.run_workflow",
+        celery_task = send_task(
+            task_name="worker.tasks.workflow.run_workflow",
             kwargs={"run_id": str(run_id)},
             queue="default",
         )
