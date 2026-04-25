@@ -5,6 +5,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import Request
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.refresh_token_session import RefreshTokenSession
@@ -52,6 +53,17 @@ class RefreshTokenService:
         session.revoked_at = datetime.now(UTC)
         session.replaced_by_jti = new_jti
         return True
+
+
+    async def revoke_all_for_user(self, user_id: uuid.UUID) -> None:
+        await self.db.execute(
+            update(RefreshTokenSession)
+            .where(
+                RefreshTokenSession.user_id == user_id,
+                RefreshTokenSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=datetime.now(UTC))
+        )
 
 
 def build_device_fingerprint(request: Request) -> str | None:
