@@ -10,7 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "celery[redis]==5.4.0",
     "kombu==5.4.2",
-    "redbeat==2.2.0",
+    "celery-redbeat==2.2.0",
     "sqlalchemy[asyncio]==2.0.36",
     "asyncpg==0.30.0",
     "openai==1.58.1",

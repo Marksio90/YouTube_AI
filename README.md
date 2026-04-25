@@ -55,3 +55,7 @@ Services:
 - [ ] YouTube OAuth flow
 - [ ] Thumbnail generation agent
 - [ ] Video rendering pipeline
+
+## Dependency governance
+
+- Dependency update + security process is documented in [`DEPENDENCY_POLICY.md`](./DEPENDENCY_POLICY.md).

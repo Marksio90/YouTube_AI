@@ -23,6 +23,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lockfile-integrity:
+    name: Lockfile integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Verify JS lockfile matches manifests
+        run: |
+          pnpm install --lockfile-only --ignore-scripts
+          git diff --exit-code -- pnpm-lock.yaml
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Verify backend uv.lock matches pyproject.toml
+        run: cd apps/backend && uv lock --check
+
+      - name: Verify worker uv.lock matches pyproject.toml
+        run: cd apps/worker && uv lock --check
+
   frontend-build:
     name: Build frontend
     runs-on: ubuntu-latest
@@ -114,7 +148,7 @@ jobs:
     name: Tests (placeholder)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [frontend-build, backend-build, lint]
+    needs: [lockfile-integrity, frontend-build, backend-build, lint]
 
     steps:
       - name: Placeholder test stage
