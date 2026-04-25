@@ -18,7 +18,7 @@ dependencies = [
     "pydantic==2.10.3",
     "pydantic-settings==2.6.1",
     "redis[hiredis]==5.2.1",
-    "boto3==1.35.88",
+    "boto3==1.42.96",
     "structlog==24.4.0",
     "tenacity==9.1.4",
     "python-dotenv==1.2.2",
