@@ -18,6 +18,7 @@ from worker.llm.config import ModelConfig
 from worker.llm.errors import ProviderError, RateLimitError
 from worker.llm.provider import BaseProvider
 from worker.llm.response import LLMResponse
+from worker.llm_support import OPENAI_MODEL_PREFIXES
 from worker.llm.types import FinishReason, Message, Usage
 from worker.config import settings
 
@@ -26,6 +27,7 @@ T = TypeVar("T")
 
 class OpenAIProvider(BaseProvider):
     name = "openai"
+    supported_model_prefixes = OPENAI_MODEL_PREFIXES
 
     def __init__(
         self,

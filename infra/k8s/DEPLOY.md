@@ -151,6 +151,32 @@ kubectl rollout status deployment/backend -n ai-media-os
 kubectl rollout undo deployment/backend -n ai-media-os
 ```
 
+## LLM provider/model configuration (startup validated)
+
+Worker startup now validates `LLM_PROVIDER` + `LLM_DEFAULT_MODEL` and fails fast on invalid combinations.
+
+Supported matrix:
+
+- `openai` → model must start with: `gpt-`, `o1-`, `o3-`, or `chatgpt-`
+- `local` → any non-empty model (OpenAI-style aliases are auto-mapped to `LLM_LOCAL_MODEL`)
+- `mock` → any non-empty model (testing/dev)
+
+Recommended production defaults:
+
+```env
+LLM_PROVIDER=openai
+LLM_DEFAULT_MODEL=gpt-4o-mini
+```
+
+Example local setup:
+
+```env
+LLM_PROVIDER=local
+LLM_DEFAULT_MODEL=gpt-4o-mini
+LLM_LOCAL_BASE_URL=http://ollama:11434/v1
+LLM_LOCAL_MODEL=llama3.2
+```
+
 ## Monitoring (Prometheus + Grafana)
 
 The kustomization now deploys:

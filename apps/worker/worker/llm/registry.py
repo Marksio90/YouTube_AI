@@ -18,6 +18,7 @@ from __future__ import annotations
 import structlog
 
 from worker.llm.provider import LLMProvider
+from worker.llm_support import SUPPORTED_PROVIDERS, is_provider_supported
 
 log = structlog.get_logger(__name__)
 
@@ -63,7 +64,7 @@ def _build_builtin(name: str) -> LLMProvider:
         return MockProvider()
     raise KeyError(
         f"Unknown provider '{name}'. Register it with registry.register('{name}', provider) "
-        f"or use a built-in: openai | local | mock"
+        f"or use a built-in: {' | '.join(SUPPORTED_PROVIDERS)}"
     )
 
 
@@ -81,4 +82,9 @@ def get_provider(name: str | None = None) -> LLMProvider:
         provider = get_provider("local")   # always local
     """
     from worker.config import settings
-    return registry.get(name or settings.llm_provider)
+    target = name or settings.llm_provider
+    if not is_provider_supported(target):
+        raise KeyError(
+            f"Unsupported provider '{target}'. Supported providers: {', '.join(SUPPORTED_PROVIDERS)}"
+        )
+    return registry.get(target)

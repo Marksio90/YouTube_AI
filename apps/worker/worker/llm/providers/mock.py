@@ -56,6 +56,7 @@ class MockProvider(BaseProvider):
     """
 
     name = "mock"
+    supports_any_model = True
 
     def __init__(
         self,

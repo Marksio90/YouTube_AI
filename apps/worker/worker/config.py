@@ -1,4 +1,13 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
+
+from worker.llm_support import (
+    SUPPORTED_PROVIDERS,
+    is_model_supported,
+    is_provider_supported,
+    matrix_as_text,
+    normalize_provider_name,
+)
 
 
 class WorkerSettings(BaseSettings):
@@ -24,7 +33,30 @@ class WorkerSettings(BaseSettings):
     # Local LLM (Ollama / LM Studio — OpenAI-compatible endpoint)
     llm_local_base_url: str = "http://localhost:11434/v1"
     llm_local_model: str = "llama3.2"
-    llm_provider: str = "openai"  # "openai" | "local"
+    llm_provider: str = "openai"  # "openai" | "local" | "mock"
+
+    @model_validator(mode="after")
+    def validate_llm_provider_and_model(self) -> "WorkerSettings":
+        provider = normalize_provider_name(self.llm_provider)
+        model = self.llm_default_model.strip()
+
+        if not is_provider_supported(provider):
+            supported = ", ".join(SUPPORTED_PROVIDERS)
+            raise ValueError(
+                f"Unsupported LLM_PROVIDER='{self.llm_provider}'. "
+                f"Supported providers: {supported}."
+            )
+
+        if not is_model_supported(provider, model):
+            raise ValueError(
+                "Unsupported LLM_DEFAULT_MODEL/LLM_PROVIDER combination: "
+                f"provider='{provider}', model='{self.llm_default_model}'. "
+                f"Supported matrix: {matrix_as_text()}."
+            )
+
+        self.llm_provider = provider
+        self.llm_default_model = model
+        return self
 
     # ── YouTube ───────────────────────────────────────────────────────────────
     youtube_client_id: str = ""
