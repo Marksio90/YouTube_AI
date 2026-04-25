@@ -48,7 +48,9 @@ export function TopBar() {
           <Bell className="h-4 w-4" />
         </button>
         <button
-          onClick={logout}
+          onClick={() => {
+            void logout();
+          }}
           className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-gray-400 hover:bg-gray-800 hover:text-gray-100 transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" />

@@ -1,57 +1,100 @@
-interface ApiError { code: string; message: string; details: Record<string, unknown> | null }
+interface ApiError {
+  code: string;
+  message: string;
+  details: Record<string, unknown> | null;
+}
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
+interface RequestOptions extends RequestInit {
+  skipAuthRefresh?: boolean;
+  hasRetried?: boolean;
+}
+
 class ApiClient {
   private baseUrl: string;
-  private token: string | null = null;
+  private refreshPromise: Promise<void> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
   }
 
-  setToken(token: string | null) {
-    this.token = token;
+  private async refreshAuthSession(): Promise<void> {
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.request<void>("/auth/refresh", {
+        method: "POST",
+        skipAuthRefresh: true,
+      }).finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+
+    return this.refreshPromise;
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  private async request<T>(path: string, init: RequestOptions = {}): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(init.headers as Record<string, string> | undefined),
     };
 
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
 
-    const res = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
-
-    if (!res.ok) {
-      let error: ApiError = { code: "HTTP_ERROR", message: res.statusText, details: null };
+    if (response.status === 401 && !init.skipAuthRefresh && !init.hasRetried) {
       try {
-        error = await res.json();
-      } catch {}
-      throw new ApiClientError(res.status, error);
+        await this.refreshAuthSession();
+      } catch {
+        throw await this.buildApiError(response);
+      }
+
+      return this.request<T>(path, { ...init, hasRetried: true });
     }
 
-    if (res.status === 204) return undefined as T;
-    return res.json();
+    if (!response.ok) {
+      throw await this.buildApiError(response);
+    }
+
+    if (response.status === 204) return undefined as T;
+    return response.json();
   }
 
-  get<T>(path: string) {
-    return this.request<T>(path, { method: "GET" });
+  private async buildApiError(response: Response) {
+    let error: ApiError = { code: "HTTP_ERROR", message: response.statusText, details: null };
+    try {
+      error = await response.json();
+    } catch {
+      // noop - keep default API error object
+    }
+    return new ApiClientError(response.status, error);
   }
 
-  post<T>(path: string, body: unknown) {
-    return this.request<T>(path, { method: "POST", body: JSON.stringify(body) });
+  get<T>(path: string, options: Omit<RequestOptions, "method"> = {}) {
+    return this.request<T>(path, { ...options, method: "GET" });
   }
 
-  patch<T>(path: string, body: unknown) {
-    return this.request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+  post<T>(path: string, body?: unknown, options: Omit<RequestOptions, "method" | "body"> = {}) {
+    const requestInit: RequestOptions = {
+      ...options,
+      method: "POST",
+    };
+
+    if (typeof body !== "undefined") {
+      requestInit.body = JSON.stringify(body);
+    }
+
+    return this.request<T>(path, requestInit);
   }
 
-  delete<T>(path: string) {
-    return this.request<T>(path, { method: "DELETE" });
+  patch<T>(path: string, body: unknown, options: Omit<RequestOptions, "method" | "body"> = {}) {
+    return this.request<T>(path, { ...options, method: "PATCH", body: JSON.stringify(body) });
+  }
+
+  delete<T>(path: string, options: Omit<RequestOptions, "method"> = {}) {
+    return this.request<T>(path, { ...options, method: "DELETE" });
   }
 }
 

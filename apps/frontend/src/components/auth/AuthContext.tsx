@@ -6,56 +6,68 @@ import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type LoginPayload = { email: string; password: string };
-type LoginResponse = { access_token: string; refresh_token: string; token_type: string };
 
 type AuthContextType = {
   ready: boolean;
   isAuthenticated: boolean;
-  accessToken: string | null;
+  accessToken: null;
   login: (payload: LoginPayload) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(loadSession().hasSession);
   const router = useRouter();
 
+  const fetchSession = async () => {
+    await apiClient.get("/auth/me", { skipAuthRefresh: true });
+    saveSession();
+    setIsAuthenticated(true);
+  };
+
   useEffect(() => {
-    const { accessToken: storedAccess } = loadSession();
-    if (storedAccess) {
-      setAccessToken(storedAccess);
-      apiClient.setToken(storedAccess);
-    }
-    setReady(true);
+    const checkSession = async () => {
+      try {
+        await fetchSession();
+      } catch {
+        clearSession();
+        setIsAuthenticated(false);
+      } finally {
+        setReady(true);
+      }
+    };
+
+    void checkSession();
   }, []);
 
   const login = async ({ email, password }: LoginPayload) => {
-    const result = await apiClient.post<LoginResponse>("/auth/login", { email, password });
-    saveSession(result.access_token, result.refresh_token);
-    setAccessToken(result.access_token);
-    apiClient.setToken(result.access_token);
+    await apiClient.post("/auth/login", { email, password }, { skipAuthRefresh: true });
+    await fetchSession();
     router.push("/dashboard");
   };
 
-  const logout = () => {
-    clearSession();
-    setAccessToken(null);
-    apiClient.setToken(null);
-    router.push("/login");
+  const logout = async () => {
+    try {
+      await apiClient.post("/auth/logout", undefined, { skipAuthRefresh: true });
+    } finally {
+      clearSession();
+      setIsAuthenticated(false);
+      router.push("/login");
+    }
   };
 
   const value = useMemo<AuthContextType>(
     () => ({
       ready,
-      isAuthenticated: Boolean(accessToken),
-      accessToken,
+      isAuthenticated,
+      accessToken: null,
       login,
       logout,
     }),
-    [ready, accessToken]
+    [ready, isAuthenticated]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
