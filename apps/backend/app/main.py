@@ -11,6 +11,7 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.exceptions import AppError
 from app.core.logging import configure_logging
+from app.core.request_context import correlation_id_middleware
 from app.db.session import engine
 from app.monitoring import metrics_middleware, metrics_response
 

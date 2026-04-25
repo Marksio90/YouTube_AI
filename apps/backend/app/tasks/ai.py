@@ -3,7 +3,7 @@ Backend-side task dispatchers. These functions enqueue work to the worker
 via Celery's broker — they do NOT contain task implementations.
 """
 
-from app.core.celery import celery_client
+from app.core.celery import send_task
 
 
 def enqueue_generate_script(
@@ -15,8 +15,7 @@ def enqueue_generate_script(
     keywords: list[str] | None = None,
     additional_context: str | None = None,
 ) -> str:
-    result = celery_client.send_task(
-        "worker.tasks.ai.generate_script",
+    result = send_task(task_name="worker.tasks.ai.generate_script",
         kwargs={
             "channel_id": channel_id,
             "topic": topic,
@@ -31,8 +30,7 @@ def enqueue_generate_script(
 
 
 def enqueue_generate_brief(*, channel_id: str, topic_id: str) -> str:
-    result = celery_client.send_task(
-        "worker.tasks.ai.generate_brief",
+    result = send_task(task_name="worker.tasks.ai.generate_brief",
         kwargs={"channel_id": channel_id, "topic_id": topic_id},
         queue="ai",
     )
@@ -40,8 +38,7 @@ def enqueue_generate_brief(*, channel_id: str, topic_id: str) -> str:
 
 
 def enqueue_seo_analysis(*, script_id: str) -> str:
-    result = celery_client.send_task(
-        "worker.tasks.ai.analyze_seo",
+    result = send_task(task_name="worker.tasks.ai.analyze_seo",
         kwargs={"script_id": script_id},
         queue="ai",
     )
@@ -49,8 +46,7 @@ def enqueue_seo_analysis(*, script_id: str) -> str:
 
 
 def enqueue_compliance_check(*, script_id: str) -> str:
-    result = celery_client.send_task(
-        "worker.tasks.ai.check_compliance",
+    result = send_task(task_name="worker.tasks.ai.check_compliance",
         kwargs={"script_id": script_id},
         queue="ai",
     )
@@ -63,8 +59,7 @@ def enqueue_discover_topics(
     count: int = 10,
     force: bool = False,
 ) -> str:
-    result = celery_client.send_task(
-        "worker.tasks.topics.discover_topics",
+    result = send_task(task_name="worker.tasks.topics.discover_topics",
         kwargs={"channel_id": channel_id, "count": count, "force": force},
         queue="ai",
     )
@@ -72,8 +67,7 @@ def enqueue_discover_topics(
 
 
 def enqueue_score_topic(*, topic_id: str, force: bool = False) -> str:
-    result = celery_client.send_task(
-        "worker.tasks.topics.score_topic",
+    result = send_task(task_name="worker.tasks.topics.score_topic",
         kwargs={"topic_id": topic_id, "force": force},
         queue="ai",
     )
@@ -81,8 +75,7 @@ def enqueue_score_topic(*, topic_id: str, force: bool = False) -> str:
 
 
 def enqueue_generate_recommendations(*, channel_id: str, force: bool = False) -> str:
-    result = celery_client.send_task(
-        "worker.tasks.recommendations.generate_recommendations",
+    result = send_task(task_name="worker.tasks.recommendations.generate_recommendations",
         kwargs={"channel_id": channel_id, "force": force},
         queue="ai",
     )
@@ -94,8 +87,7 @@ def enqueue_generate_audio(
     script_id: str,
     voice_id: str = "alloy",
 ) -> str:
-    result = celery_client.send_task(
-        "worker.tasks.media.generate_audio",
+    result = send_task(task_name="worker.tasks.media.generate_audio",
         kwargs={"script_id": script_id, "voice_id": voice_id},
         queue="media",
     )
@@ -107,8 +99,7 @@ def enqueue_generate_thumbnail(
     publication_id: str,
     style: str = "bold_text",
 ) -> str:
-    result = celery_client.send_task(
-        "worker.tasks.media.generate_thumbnail",
+    result = send_task(task_name="worker.tasks.media.generate_thumbnail",
         kwargs={"publication_id": publication_id, "style": style},
         queue="media",
     )

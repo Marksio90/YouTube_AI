@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  namespace: ai-media-os
+  labels:
+    app.kubernetes.io/name: logstash
+    app.kubernetes.io/part-of: ai-media-os
+    app.kubernetes.io/component: logging
+
+data:
+  logstash.yml: |
+    http.host: "0.0.0.0"
+    xpack.monitoring.enabled: false
+  pipeline.conf: |
+    input {
+      beats {
+        port => 5044
+      }
+    }
+
+    filter {
+      if [message] {
+        json {
+          source => "message"
+          target => "app_log"
+          skip_on_invalid_json => true
+        }
+      }
+
+      mutate {
+        add_field => {
+          "service" => "%{[kubernetes][labels][app_kubernetes_io_name]}"
+          "namespace" => "%{[kubernetes][namespace]}"
+          "pod" => "%{[kubernetes][pod][name]}"
+        }
+      }
+
+      if [app_log][level] {
+        mutate {
+          copy => { "[app_log][level]" => "log_level" }
+        }
+      }
+
+      if [app_log][event] {
+        mutate {
+          copy => { "[app_log][event]" => "event_name" }
+        }
+      }
+
+      if [app_log][correlation_id] {
+        mutate {
+          copy => { "[app_log][correlation_id]" => "correlation_id" }
+        }
+      }
+    }
+
+    output {
+      elasticsearch {
+        hosts => ["http://elasticsearch:9200"]
+        index => "ai-media-os-logs-%{+YYYY.MM.dd}"
+      }
+      stdout { codec => rubydebug }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: ai-media-os
+  labels:
+    app.kubernetes.io/name: logstash
+    app.kubernetes.io/part-of: ai-media-os
+    app.kubernetes.io/component: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: logstash
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: logstash
+        app.kubernetes.io/part-of: ai-media-os
+        app.kubernetes.io/component: logging
+    spec:
+      containers:
+        - name: logstash
+          image: docker.elastic.co/logstash/logstash:8.15.0
+          ports:
+            - name: beats
+              containerPort: 5044
+            - name: api
+              containerPort: 9600
+          volumeMounts:
+            - name: config
+              mountPath: /usr/share/logstash/config/logstash.yml
+              subPath: logstash.yml
+            - name: config
+              mountPath: /usr/share/logstash/pipeline/pipeline.conf
+              subPath: pipeline.conf
+      volumes:
+        - name: config
+          configMap:
+            name: logstash-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: ai-media-os
+spec:
+  selector:
+    app.kubernetes.io/name: logstash
+  ports:
+    - name: beats
+      port: 5044
+      targetPort: beats
+    - name: api
+      port: 9600
+      targetPort: api
