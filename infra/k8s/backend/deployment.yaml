@@ -24,6 +24,10 @@ spec:
       maxUnavailable: 0  # Zero-downtime deploy
   template:
     metadata:
+      annotations:
+        co.elastic.logs/enabled: "true"
+        co.elastic.logs/json.keys_under_root: "true"
+        co.elastic.logs/json.add_error_key: "true"
       labels:
         app.kubernetes.io/name: backend
         app.kubernetes.io/part-of: ai-media-os

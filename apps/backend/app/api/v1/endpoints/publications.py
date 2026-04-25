@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
 from app.schemas.common import PaginatedResponse, TaskResponse
-from app.schemas.publication import PublicationCreate, PublicationRead, PublicationUpdate
+from app.schemas.publication import PublicationCreate, PublicationRead, PublicationUpdate, PublishPipelineRequest
 from app.services.publication import PublicationService
 
 router = APIRouter(prefix="/publications", tags=["publications"])
@@ -73,3 +73,14 @@ async def publish(
 ) -> TaskResponse:
     svc = PublicationService(db)
     return await svc.enqueue_publish(publication_id, owner_id=current_user.id)
+
+
+@router.post("/{publication_id}/publish-pipeline", response_model=TaskResponse)
+async def publish_pipeline(
+    publication_id: uuid.UUID,
+    payload: PublishPipelineRequest,
+    current_user: CurrentUser,
+    db: DB,
+) -> TaskResponse:
+    svc = PublicationService(db)
+    return await svc.enqueue_publish_pipeline(publication_id, payload, owner_id=current_user.id)

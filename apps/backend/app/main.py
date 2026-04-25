@@ -2,16 +2,19 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import structlog
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
+from app.core.auth_middleware import auth_middleware
 from app.core.config import settings
 from app.core.exceptions import AppError
 from app.core.logging import configure_logging
+from app.core.request_context import correlation_id_middleware
 from app.db.session import engine
+from app.monitoring import metrics_middleware, metrics_response
 
 logger = structlog.get_logger(__name__)
 
@@ -43,10 +46,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.middleware("http")(correlation_id_middleware)
+app.middleware("http")(auth_middleware)
+app.middleware("http")(metrics_middleware)
+
 app.include_router(api_router)
 
 
-# ── System endpoints ──────────────────────────────────────────────────────────
+# ── System endpoints ─────────────────────────────────────────────────────────
+
+
+@app.get("/metrics", tags=["system"], include_in_schema=False)
+async def metrics() -> Response:
+    return await metrics_response()
+
 
 @app.get("/health", tags=["system"], status_code=status.HTTP_200_OK)
 async def health() -> dict:

@@ -88,7 +88,7 @@ async def seed_user(db) -> None:
         email="demo@aimediaos.com",
         name="Demo Account",
         hashed_password=pwd_ctx.hash("demo1234"),
-        role=UserRole.owner,
+        role=UserRole.admin,
         is_active=True,
     )
     db.add(user)
