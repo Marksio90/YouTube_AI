@@ -36,5 +36,4 @@ __all__ = [
     "WorkflowJob",
     "WorkflowAuditEvent",
     "AudioJob",
-    "VideoRenderJob",
 ]
