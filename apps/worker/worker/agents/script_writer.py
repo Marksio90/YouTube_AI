@@ -39,13 +39,11 @@ class ScriptWriterAgent(ScriptwriterAgent):
                 style_notes=additional_context or "",
             )
         )
-        body_sections = [s.content for s in out.sections if s.type not in {"hook", "cta", "outro"}]
-        cta_section = next((s.content for s in out.sections if s.type == "cta"), "")
         return {
             "title": out.title,
             "hook": out.hook,
-            "body": "\n\n".join(body_sections).strip(),
-            "cta": cta_section,
-            "keywords": list(out.keyword_placement.keys()),
+            "body": out.body,
+            "cta": out.cta,
+            "keywords": out.keywords,
             "estimated_duration_seconds": out.estimated_duration_seconds,
         }

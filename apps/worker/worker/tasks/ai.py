@@ -19,7 +19,7 @@ from worker.idempotency import guard as idp
 from worker import registry
 from worker.agents.compliance import ComplianceAgent, ComplianceInput
 from worker.agents.metadata import MetadataAgent, MetadataInput
-from worker.agents.scriptwriter import ScriptwriterAgent, ScriptwriterInput
+from worker.agents.scriptwriter import ScriptwriterAgent, ScriptwriterInput, ScriptwriterOutput
 
 log = structlog.get_logger(__name__)
 
@@ -144,8 +144,6 @@ async def _run_generate_script(
             style_notes=additional_context or "",
         )
     )
-    script_data = _script_output_to_legacy(script_out)
-
     async with get_db_session() as db:
         await registry.record_progress(db, task_id=task_id, progress=40, step="seo_analysis")
 
@@ -153,8 +151,8 @@ async def _run_generate_script(
     self_update(task, "seo_analysis", 40)
     metadata_out = await task.metadata.run(
         MetadataInput(
-            title=script_data["title"],
-            script=script_data["body"],
+            title=script_out.title,
+            script=script_out.body,
             niche=channel_info.get("niche", "general"),
             target_keywords=keywords,
             language="en",
@@ -169,8 +167,8 @@ async def _run_generate_script(
     self_update(task, "compliance_check", 70)
     compliance_out = await task.compliance.run(
         ComplianceInput(
-            title=script_data["title"],
-            script=f"{script_data.get('hook', '')} {script_data.get('body', '')}".strip(),
+            title=script_out.title,
+            script=f"{script_out.hook} {script_out.body}".strip(),
             niche=channel_info.get("niche", "general"),
         )
     )
@@ -180,14 +178,14 @@ async def _run_generate_script(
     self_update(task, "saving", 90)
     script_id = await _persist_script(
         channel_id=channel_id,
-        script_data=script_data,
+        script_output=script_out,
         seo_data=seo_data,
         compliance_data=compliance_data,
     )
 
     result = {
         "script_id": script_id,
-        "title": script_data.get("title"),
+        "title": script_out.title,
         "seo_score": seo_data.get("overall_score"),
         "compliance_status": compliance_data.get("overall_status"),
         "monetization_eligible": compliance_data.get("monetization_eligible", True),
@@ -266,8 +264,6 @@ async def _run_generate_brief(task, task_id, channel_id, topic_id, idp_key) -> d
             style_notes=topic_row.get("description") or "",
         )
     )
-    brief_data = _script_output_to_legacy(brief_out)
-
     brief_id = str(uuid.uuid4())
     async with get_db_session() as db:
         await db.execute(
@@ -284,9 +280,9 @@ async def _run_generate_brief(task, task_id, channel_id, topic_id, idp_key) -> d
                 "id": brief_id,
                 "channel_id": channel_id,
                 "topic_id": topic_id,
-                "title": brief_data.get("title", topic_row["title"]),
-                "key_points": _as_json(brief_data.get("keywords", [])),
-                "seo_keywords": list(brief_data.get("keywords", [])),
+                "title": brief_out.title or topic_row["title"],
+                "key_points": _as_json(brief_out.keywords),
+                "seo_keywords": brief_out.keywords,
             },
         )
         await db.execute(
@@ -462,7 +458,7 @@ async def _load_channel(db, channel_id: str) -> dict:
 
 async def _persist_script(
     channel_id: str,
-    script_data: dict,
+    script_output: ScriptwriterOutput,
     seo_data: dict,
     compliance_data: dict,
 ) -> str:
@@ -481,12 +477,12 @@ async def _persist_script(
             {
                 "id": script_id,
                 "channel_id": channel_id,
-                "title": script_data.get("title", ""),
-                "hook": script_data.get("hook", ""),
-                "body": script_data.get("body", ""),
-                "cta": script_data.get("cta", ""),
-                "keywords": list(script_data.get("keywords", [])),
-                "dur": script_data.get("estimated_duration_seconds", 600),
+                "title": script_output.title,
+                "hook": script_output.hook,
+                "body": script_output.body,
+                "cta": script_output.cta,
+                "keywords": script_output.keywords,
+                "dur": script_output.estimated_duration_seconds,
                 "tone": "educational",
                 "seo": seo_data.get("overall_score"),
                 "compliance": compliance_data.get("compliance_score"),
@@ -506,19 +502,6 @@ async def _mark_task_failure(task_id: str, error: str, retry_count: int) -> None
 def _as_json(v) -> str:
     import json
     return json.dumps(v)
-
-
-def _script_output_to_legacy(output) -> dict[str, Any]:
-    body_sections = [s.content for s in output.sections if s.type not in {"hook", "cta", "outro"}]
-    cta_section = next((s.content for s in output.sections if s.type == "cta"), "")
-    return {
-        "title": output.title,
-        "hook": output.hook,
-        "body": "\n\n".join(body_sections).strip(),
-        "cta": cta_section,
-        "keywords": list(output.keyword_placement.keys()),
-        "estimated_duration_seconds": output.estimated_duration_seconds,
-    }
 
 
 def _metadata_output_to_seo(output) -> dict[str, Any]:
