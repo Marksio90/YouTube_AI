@@ -22,6 +22,10 @@ spec:
       maxUnavailable: 1
   template:
     metadata:
+      annotations:
+        co.elastic.logs/enabled: "true"
+        co.elastic.logs/json.keys_under_root: "true"
+        co.elastic.logs/json.add_error_key: "true"
       labels:
         app.kubernetes.io/name: worker
         app.kubernetes.io/part-of: ai-media-os
@@ -69,6 +73,10 @@ spec:
         - name: worker
           image: your-registry.io/ai-media-os/worker:latest
           imagePullPolicy: Always
+          ports:
+            - name: metrics
+              containerPort: 9108
+              protocol: TCP
           command:
             - celery
             - -A

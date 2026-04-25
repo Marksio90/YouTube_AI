@@ -59,7 +59,10 @@ kubectl create secret generic ai-media-os-secrets \
   --from-literal=S3_ACCESS_KEY_ID='' \
   --from-literal=S3_SECRET_ACCESS_KEY='' \
   --from-literal=SENTRY_DSN='' \
-  --from-literal=FLOWER_BASIC_AUTH='admin:<password>'
+  --from-literal=FLOWER_BASIC_AUTH='admin:<password>' \
+  --from-literal=POSTGRES_EXPORTER_DSN='postgresql://media_os:<password>@postgres:5432/ai_media_os?sslmode=disable' \
+  --from-literal=GRAFANA_ADMIN_USER='admin' \
+  --from-literal=GRAFANA_ADMIN_PASSWORD='<strong-password>'
 ```
 
 **Option B — External Secrets Operator (recommended for prod):**
@@ -147,3 +150,77 @@ kubectl rollout status deployment/backend -n ai-media-os
 # Rollback
 kubectl rollout undo deployment/backend -n ai-media-os
 ```
+
+## Monitoring (Prometheus + Grafana)
+
+The kustomization now deploys:
+- Prometheus (`prometheus:9090`)
+- Grafana (`grafana:3000`)
+- Redis exporter (`redis-exporter:9121`)
+- Postgres exporter (`postgres-exporter:9187`)
+- Worker metrics service (`worker-metrics:9108`)
+
+Collected metrics:
+- API latency + request count (`/metrics` on backend)
+- Worker job status (Celery success/failure counters)
+- Queue size per Celery queue
+- DB health (`db_health_status`)
+- Memory usage (`process_resident_memory_bytes`)
+
+Alert rules included:
+- `WorkerDown`
+- `QueueStuck`
+- `HighApiLatency`
+- `DatabaseIssues`
+
+Port-forward examples:
+
+```bash
+kubectl -n ai-media-os port-forward svc/prometheus 9090:9090
+kubectl -n ai-media-os port-forward svc/grafana 3000:3000
+```
+
+## Logging (ELK)
+
+Kustomize now includes an ELK stack:
+- Elasticsearch (`elasticsearch:9200`)
+- Logstash (`logstash:5044`)
+- Kibana (`kibana:5601`)
+- Filebeat DaemonSet for pod log shipping
+
+Collected logs (operational scope):
+- backend logs
+- worker logs
+- API errors
+- workflow events
+
+### Structured logging and correlation
+- Backend and worker logs are emitted as structured JSON in production mode.
+- Backend middleware injects `X-Correlation-ID` and propagates `correlation_id` to Celery headers.
+- Worker binds `correlation_id`, `task_id`, and `task_name` into task log context.
+
+### Kibana usage
+
+Port-forward Kibana:
+
+```bash
+kubectl -n ai-media-os port-forward svc/kibana 5601:5601
+```
+
+Create data view in Kibana:
+- Index pattern: `ai-media-os-logs-*`
+- Time field: `@timestamp`
+
+Useful KQL filters:
+- Backend only: `service : "backend"`
+- Worker only: `service : "worker"`
+- API errors: `service : "backend" and log_level : ("error" or "warning")`
+- Workflow events: `event_name : "workflow.*"`
+- Correlated trace: `correlation_id : "<id>"`
+
+Search examples:
+- Full-text: `message : "timeout"`
+- By pod: `pod : "worker-"*`
+
+Operational dashboard: use Kibana Lens / Dashboard with charts by
+`service`, `log_level`, and `event_name` over time.
