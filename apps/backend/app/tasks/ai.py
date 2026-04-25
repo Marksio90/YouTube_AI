@@ -123,6 +123,42 @@ def enqueue_optimize_channel(
     return result.id
 
 
+def enqueue_sync_channel(*, channel_id: str, date: str) -> str:
+    result = send_task(
+        task_name="worker.tasks.analytics.sync_channel",
+        kwargs={"channel_id": channel_id, "date": date},
+        queue="analytics",
+    )
+    return result.id
+
+
+def enqueue_sync_publication(*, publication_id: str, date: str) -> str:
+    result = send_task(
+        task_name="worker.tasks.analytics.sync_publication",
+        kwargs={"publication_id": publication_id, "date": date},
+        queue="analytics",
+    )
+    return result.id
+
+
+def enqueue_backfill_channel(
+    *,
+    channel_id: str,
+    days: int = 28,
+    include_publications: bool = True,
+) -> str:
+    result = send_task(
+        task_name="worker.tasks.analytics.backfill_channel",
+        kwargs={
+            "channel_id": channel_id,
+            "days": days,
+            "include_publications": include_publications,
+        },
+        queue="analytics",
+    )
+    return result.id
+
+
 def enqueue_generate_thumbnails(
     *,
     publication_id: str,
