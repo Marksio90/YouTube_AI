@@ -61,7 +61,14 @@ async def trigger_workflow(
 ) -> WorkflowActionResponse:
     """Create a new workflow run and dispatch it to the worker."""
     try:
-        run, task_id = await _svc(db).trigger(payload, owner_id=current_user.id)
+        run, task_id = await _svc(db).trigger(
+            payload,
+            owner_id=current_user.id,
+            organization_id=current_user.organization_id,
+        )
+    except (NotFoundError, PermissionDeniedError) as exc:
+        code = 404 if isinstance(exc, NotFoundError) else 403
+        raise HTTPException(status_code=code, detail=str(exc))
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 

@@ -29,6 +29,7 @@ from app.db.models.workflow import (
     WorkflowJob,
     WorkflowRun,
 )
+from app.repositories.channel import ChannelRepository
 from app.repositories.workflow import WorkflowJobRepository, WorkflowRunRepository
 from app.schemas.workflow import (
     InjectResultRequest,
@@ -58,8 +59,16 @@ class WorkflowService:
         self,
         payload:  TriggerRequest,
         owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None = None,
     ) -> tuple[WorkflowRun, str]:
         """Create a WorkflowRun and dispatch the Celery execution task."""
+        if payload.channel_id is not None:
+            await self._validate_channel_access(
+                channel_id=payload.channel_id,
+                owner_id=owner_id,
+                organization_id=organization_id,
+            )
+
         run = WorkflowRun(
             owner_id          = owner_id,
             channel_id        = payload.channel_id,
@@ -337,6 +346,27 @@ class WorkflowService:
         if actor != "system" and str(run.owner_id) != actor:
             raise PermissionDeniedError("Not your workflow run")
         return run
+
+    async def _validate_channel_access(
+        self,
+        *,
+        channel_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None,
+    ) -> None:
+        channel_repo = ChannelRepository(self._db)
+        channel = await channel_repo.get_owned(
+            channel_id,
+            owner_id=owner_id,
+            organization_id=organization_id,
+        )
+        if channel is not None:
+            return
+
+        if await channel_repo.get(channel_id) is None:
+            raise NotFoundError(f"Channel {channel_id} not found")
+
+        raise PermissionDeniedError("No access to this channel")
 
 
 def _now() -> datetime:
