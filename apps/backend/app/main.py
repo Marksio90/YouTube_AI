@@ -45,7 +45,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.middleware("http")(correlation_id_middleware)
 app.middleware("http")(metrics_middleware)
 
 app.include_router(api_router)

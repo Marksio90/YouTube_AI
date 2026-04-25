@@ -42,13 +42,6 @@ resources:
   - monitoring/grafana-dashboards-configmap.yaml
   - monitoring/grafana-deployment.yaml
 
-
-  # ── Logging (ELK) ───────────────────────────────────────────────────────
-  - logging/elasticsearch.yaml
-  - logging/logstash.yaml
-  - logging/filebeat.yaml
-  - logging/kibana.yaml
-
   # ── Routing ───────────────────────────────────────────────────────────────
   - ingress/ingress.yaml
 
