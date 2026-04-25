@@ -1,7 +1,8 @@
 .PHONY: help dev prod build build-prod stop clean ps logs logs-backend logs-worker logs-frontend \
         migrate migrate-create migrate-down seed \
         shell-backend shell-worker shell-db shell-frontend \
-        test test-frontend lint typecheck setup
+        test test-frontend lint typecheck setup \
+        k8s-apply k8s-dry-run k8s-status k8s-migrate k8s-rollout k8s-rollback
 
 COMPOSE      = docker compose
 COMPOSE_PROD = docker compose -f docker-compose.yml
@@ -98,6 +99,43 @@ lint: ## Lint backend and frontend
 
 typecheck: ## Run TypeScript type checking
 	pnpm typecheck
+
+# ── Kubernetes ───────────────────────────────────────────────────────────────
+NAMESPACE    = ai-media-os
+REGISTRY    ?= your-registry.io/ai-media-os
+IMAGE_TAG   ?= latest
+
+k8s-dry-run: ## Dry-run kustomize apply (validates manifests)
+	kubectl kustomize infra/k8s | kubectl apply --dry-run=client -f -
+
+k8s-apply: ## Apply all k8s manifests (ensure secrets exist first)
+	kubectl kustomize infra/k8s | kubectl apply -f -
+
+k8s-status: ## Show pod/hpa/ingress status in namespace
+	@echo "── Pods ──────────────────────────────────────────────────"
+	kubectl get pods -n $(NAMESPACE)
+	@echo "── HPAs ──────────────────────────────────────────────────"
+	kubectl get hpa -n $(NAMESPACE)
+	@echo "── Ingress ───────────────────────────────────────────────"
+	kubectl get ingress -n $(NAMESPACE)
+
+k8s-migrate: ## Run Alembic migrations as a one-off Job in k8s
+	kubectl run alembic-migrate-$$(date +%s) \
+	  --image=$(REGISTRY)/backend:$(IMAGE_TAG) \
+	  --restart=Never --rm -i \
+	  -n $(NAMESPACE) \
+	  --env-from=secret/ai-media-os-secrets \
+	  --env-from=configmap/ai-media-os-config \
+	  -- alembic upgrade head
+
+k8s-rollout: ## IMAGE=backend|worker|frontend TAG=v1.2.3 — rolling update
+	kubectl set image deployment/$(IMAGE) \
+	  $(IMAGE)=$(REGISTRY)/$(IMAGE):$(TAG) \
+	  -n $(NAMESPACE)
+	kubectl rollout status deployment/$(IMAGE) -n $(NAMESPACE)
+
+k8s-rollback: ## IMAGE=backend|worker|frontend — rollback last deploy
+	kubectl rollout undo deployment/$(IMAGE) -n $(NAMESPACE)
 
 # ── First-time setup ──────────────────────────────────────────────────────────
 setup: ## First-time setup: copy env → start infra → run migrations

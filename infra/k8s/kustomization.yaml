@@ -1,0 +1,46 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ai-media-os
+
+resources:
+  # ── Foundation ────────────────────────────────────────────────────────────
+  - namespace.yaml
+  - configmap.yaml
+  # NOTE: secrets.yaml is a template — populate via External Secrets or
+  #       kubectl create secret before applying the rest.
+  # - secrets.yaml
+
+  # ── Data layer ────────────────────────────────────────────────────────────
+  - postgres/statefulset.yaml
+  - postgres/service.yaml
+  - redis/statefulset.yaml
+  - redis/service.yaml
+
+  # ── Application layer ─────────────────────────────────────────────────────
+  - backend/deployment.yaml
+  - backend/service.yaml
+  - backend/hpa.yaml
+
+  - worker/deployment.yaml
+  - worker/deployment-beat.yaml
+  - worker/deployment-flower.yaml
+  - worker/service-flower.yaml
+  - worker/hpa.yaml
+
+  - frontend/deployment.yaml
+  - frontend/service.yaml
+  - frontend/hpa.yaml
+
+  # ── Routing ───────────────────────────────────────────────────────────────
+  - ingress/ingress.yaml
+
+  # ── Reliability ───────────────────────────────────────────────────────────
+  - pdb/pdb.yaml
+
+  # ── Security ─────────────────────────────────────────────────────────────
+  - network-policy/network-policy.yaml
+
+commonLabels:
+  app.kubernetes.io/managed-by: kustomize
+  environment: production

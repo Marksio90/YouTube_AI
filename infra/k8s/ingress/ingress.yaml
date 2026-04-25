@@ -1,0 +1,140 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-media-os
+  namespace: ai-media-os
+  labels:
+    app.kubernetes.io/name: ai-media-os
+    app.kubernetes.io/part-of: ai-media-os
+  annotations:
+    # ── nginx-ingress-controller ──────────────────────────────────────────
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # ── Timeouts ──────────────────────────────────────────────────────────
+    # Long timeout for AI/LLM endpoints that can take 30–90s
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+
+    # ── Upload size (media uploads) ───────────────────────────────────────
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+
+    # ── Rate limiting ──────────────────────────────────────────────────────
+    # 30 req/s per IP, burst up to 60
+    nginx.ingress.kubernetes.io/limit-rps: "30"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "2"
+
+    # ── CORS (handled by FastAPI — nginx just passes through) ────────────
+    nginx.ingress.kubernetes.io/enable-cors: "false"
+
+    # ── Security headers ──────────────────────────────────────────────────
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+    # ── cert-manager TLS ──────────────────────────────────────────────────
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+    - hosts:
+        - app.yourdomain.com
+      secretName: ai-media-os-tls
+  rules:
+    - host: app.yourdomain.com
+      http:
+        paths:
+          # ── API (FastAPI backend) ────────────────────────────────────
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  name: http
+          # ── OpenAPI docs (non-prod only — gate via network policy in prod)
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  name: http
+          - path: /redoc
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  name: http
+          - path: /openapi.json
+            pathType: Exact
+            backend:
+              service:
+                name: backend
+                port:
+                  name: http
+          # ── Health check (for external monitors) ─────────────────────
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: backend
+                port:
+                  name: http
+          # ── Flower (Celery monitoring — basic-auth protected) ─────────
+          - path: /flower
+            pathType: Prefix
+            backend:
+              service:
+                name: flower
+                port:
+                  name: http
+          # ── Frontend (Next.js — catch-all last) ──────────────────────
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  name: http
+---
+# Separate ingress for WebSocket — requires specific nginx config
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-media-os-websocket
+  namespace: ai-media-os
+  labels:
+    app.kubernetes.io/name: ai-media-os
+    app.kubernetes.io/part-of: ai-media-os
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # WebSocket upgrade headers
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+    - hosts:
+        - app.yourdomain.com
+      secretName: ai-media-os-tls
+  rules:
+    - host: app.yourdomain.com
+      http:
+        paths:
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  name: http
