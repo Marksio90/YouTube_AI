@@ -24,6 +24,7 @@ dependencies = [
     "python-dotenv==1.0.1",
     "prometheus-client==0.22.0",
     "cryptography==43.0.3",
+    "Pillow==11.1.0",
 ]
 
 [project.optional-dependencies]
