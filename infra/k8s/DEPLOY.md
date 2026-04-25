@@ -179,3 +179,79 @@ Port-forward examples:
 kubectl -n ai-media-os port-forward svc/prometheus 9090:9090
 kubectl -n ai-media-os port-forward svc/grafana 3000:3000
 ```
+
+## Logging (ELK)
+
+Kustomize now includes an ELK stack:
+- Elasticsearch (`elasticsearch:9200`)
+- Logstash (`logstash:5044`)
+- Kibana (`kibana:5601`)
+- Filebeat DaemonSet for pod log shipping
+
+Collected logs (operational scope):
+- backend logs
+- worker logs
+- API errors
+- workflow events
+
+### Structured logging and correlation
+- Backend and worker logs are emitted as structured JSON in production mode.
+- Backend middleware injects `X-Correlation-ID` and propagates `correlation_id` to Celery headers.
+- Worker binds `correlation_id`, `task_id`, and `task_name` into task log context.
+
+### Kibana usage
+
+Port-forward Kibana:
+
+```bash
+kubectl -n ai-media-os port-forward svc/kibana 5601:5601
+```
+
+Create data view in Kibana:
+- Index pattern: `ai-media-os-logs-*`
+- Time field: `@timestamp`
+
+Useful KQL filters:
+- Backend only: `service : "backend"`
+- Worker only: `service : "worker"`
+- API errors: `service : "backend" and log_level : ("error" or "warning")`
+- Workflow events: `event_name : "workflow.*"`
+- Correlated trace: `correlation_id : "<id>"`
+
+Search examples:
+- Full-text: `message : "timeout"`
+- By pod: `pod : "worker-"*`
+
+Operational dashboard: use Kibana Lens / Dashboard with charts by
+`service`, `log_level`, and `event_name` over time.
+
+## Autoscaling (HPA + queue pressure)
+
+This repo now ships production-oriented HPA with custom/external metrics:
+
+- **backend HPA**: CPU + per-pod request rate (`api_requests_per_second`)
+- **worker HPA**: CPU + queue pressure (`celery_queue_messages`)
+
+To support request/queue metrics in HPA, `prometheus-adapter` is deployed and
+registered as `custom.metrics.k8s.io` and `external.metrics.k8s.io`.
+
+### Verify autoscaling
+
+```bash
+kubectl -n ai-media-os get hpa backend worker
+kubectl get apiservices | grep metrics.k8s.io
+kubectl get --raw /apis/custom.metrics.k8s.io/v1beta1 | jq
+kubectl get --raw /apis/external.metrics.k8s.io/v1beta1 | jq
+```
+
+### Runtime behavior
+
+- Backend scales quickly on load spikes (CPU or high RPS) and scales down gradually.
+- Worker scales aggressively when queue depth grows and scales down conservatively
+  to avoid interrupting long-running jobs.
+
+### Tuning knobs
+
+- Backend threshold: `averageValue: 20` req/s per pod.
+- Worker threshold: `averageValue: 30` queue messages per replica.
+- Min/max replicas are set in each HPA manifest and should be tuned per plan/SLO.

@@ -212,7 +212,7 @@ async def _run_sync_metrics(task, task_id, channel_id) -> dict:
             text("""
                 UPDATE channels
                 SET subscriber_count=:subs,
-                    total_view_count=:views,
+                    view_count=:views,
                     video_count=:vids,
                     updated_at=NOW()
                 WHERE id=:id
@@ -220,7 +220,7 @@ async def _run_sync_metrics(task, task_id, channel_id) -> dict:
             {
                 "id": channel_id,
                 "subs": metrics["subscriber_count"],
-                "views": metrics["total_view_count"],
+                "views": metrics["view_count"],
                 "vids": metrics["video_count"],
             },
         )
@@ -252,7 +252,7 @@ async def _fetch_channel_stats(channel: dict) -> dict:
         stats = items[0]["statistics"]
         return {
             "subscriber_count": int(stats.get("subscriberCount", 0)),
-            "total_view_count": int(stats.get("viewCount", 0)),
+            "view_count": int(stats.get("viewCount", 0)),
             "video_count": int(stats.get("videoCount", 0)),
         }
 
@@ -264,7 +264,7 @@ def _mock_channel_stats(channel_id: str) -> dict:
     rng = random.Random(seed)
     return {
         "subscriber_count": rng.randint(1_000, 500_000),
-        "total_view_count": rng.randint(50_000, 10_000_000),
+        "view_count": rng.randint(50_000, 10_000_000),
         "video_count": rng.randint(10, 300),
     }
 
