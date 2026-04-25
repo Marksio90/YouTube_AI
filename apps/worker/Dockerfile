@@ -43,6 +43,7 @@ RUN addgroup --system --gid 1001 appgroup && \
     adduser --system --uid 1001 --gid 1001 appuser && \
     chown -R appuser:appgroup /app
 USER appuser
+EXPOSE 9108
 CMD ["celery", "-A", "worker.celery_app", "worker", \
      "--loglevel=info", "--concurrency=4", \
      "-Q", "default,high,ai,media,analytics,pipeline"]

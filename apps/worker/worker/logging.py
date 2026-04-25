@@ -1,6 +1,8 @@
 import logging
 import sys
+from typing import Any
 
+from celery import signals
 import structlog
 
 from worker.config import settings
@@ -46,6 +48,27 @@ def configure_logging() -> None:
 
     for noisy in ("celery", "celery.worker", "sqlalchemy.engine", "kombu"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+
+
+@signals.task_prerun.connect
+def bind_task_context(task: Any = None, **_kwargs: Any) -> None:
+    if task is None:
+        return
+
+    headers = getattr(task.request, "headers", {}) or {}
+    correlation_id = headers.get("correlation_id", task.request.id)
+
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(
+        correlation_id=correlation_id,
+        task_id=task.request.id,
+        task_name=task.name,
+    )
+
+
+@signals.task_postrun.connect
+def clear_task_context(**_kwargs: Any) -> None:
+    structlog.contextvars.clear_contextvars()
 
 
 def task_log(task_name: str, task_id: str, **extra) -> structlog.BoundLogger:

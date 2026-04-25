@@ -27,8 +27,8 @@ async def login(payload: UserLogin, db: DB) -> TokenPair:
             detail="Invalid credentials",
         )
     return TokenPair(
-        access_token=create_access_token(str(user.id)),
-        refresh_token=create_refresh_token(str(user.id)),
+        access_token=create_access_token(str(user.id), str(user.organization_id), user.role.value),
+        refresh_token=create_refresh_token(str(user.id), str(user.organization_id)),
     )
 
 
@@ -47,8 +47,8 @@ async def refresh(payload: TokenRefresh, db: DB) -> TokenPair:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
     return TokenPair(
-        access_token=create_access_token(str(user.id)),
-        refresh_token=create_refresh_token(str(user.id)),
+        access_token=create_access_token(str(user.id), str(user.organization_id), user.role.value),
+        refresh_token=create_refresh_token(str(user.id), str(user.organization_id)),
     )
 
 

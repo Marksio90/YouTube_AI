@@ -18,7 +18,7 @@ async def list_channels(
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[ChannelRead]:
     svc = ChannelService(db)
-    return await svc.list_for_user(current_user.id, page=page, page_size=page_size)
+    return await svc.list_for_user(current_user.id, current_user.organization_id, page=page, page_size=page_size)
 
 
 @router.post("", response_model=ChannelRead, status_code=status.HTTP_201_CREATED)
@@ -26,7 +26,7 @@ async def create_channel(
     payload: ChannelCreate, current_user: CurrentUser, db: DB
 ) -> ChannelRead:
     svc = ChannelService(db)
-    channel = await svc.create(payload, owner_id=current_user.id)
+    channel = await svc.create(payload, owner_id=current_user.id, organization_id=current_user.organization_id)
     return ChannelRead.model_validate(channel)
 
 
@@ -35,7 +35,7 @@ async def get_channel(
     channel_id: uuid.UUID, current_user: CurrentUser, db: DB
 ) -> ChannelRead:
     svc = ChannelService(db)
-    channel = await svc.get_owned(channel_id, owner_id=current_user.id)
+    channel = await svc.get_owned(channel_id, owner_id=current_user.id, organization_id=current_user.organization_id)
     return ChannelRead.model_validate(channel)
 
 
@@ -44,7 +44,7 @@ async def update_channel(
     channel_id: uuid.UUID, payload: ChannelUpdate, current_user: CurrentUser, db: DB
 ) -> ChannelRead:
     svc = ChannelService(db)
-    channel = await svc.update(channel_id, payload, owner_id=current_user.id)
+    channel = await svc.update(channel_id, payload, owner_id=current_user.id, organization_id=current_user.organization_id)
     return ChannelRead.model_validate(channel)
 
 
@@ -53,7 +53,7 @@ async def delete_channel(
     channel_id: uuid.UUID, current_user: CurrentUser, db: DB
 ) -> None:
     svc = ChannelService(db)
-    await svc.delete(channel_id, owner_id=current_user.id)
+    await svc.delete(channel_id, owner_id=current_user.id, organization_id=current_user.organization_id)
 
 
 @router.post("/{channel_id}/sync-metrics", response_model=TaskResponse)
@@ -62,6 +62,6 @@ async def sync_metrics(
 ) -> TaskResponse:
     from app.tasks.youtube import enqueue_sync_metrics
     svc = ChannelService(db)
-    channel = await svc.get_owned(channel_id, owner_id=current_user.id)
+    channel = await svc.get_owned(channel_id, owner_id=current_user.id, organization_id=current_user.organization_id)
     task_id = enqueue_sync_metrics(channel_id=str(channel.id))
     return TaskResponse(task_id=task_id, status="pending")
