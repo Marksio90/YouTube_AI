@@ -24,17 +24,15 @@ from worker.llm.config import ModelConfig
 from worker.llm.errors import ProviderUnavailableError
 from worker.llm.provider import BaseProvider
 from worker.llm.response import LLMResponse
+from worker.llm_support import OPENAI_MODEL_PREFIXES
 from worker.llm.types import FinishReason, Message, Usage
 from worker.config import settings
 
 T = TypeVar("T")
 
-# OpenAI model names that should be redirected to the local model
-_OPENAI_MODEL_PREFIXES = ("gpt-", "o1-", "o3-", "chatgpt-")
-
-
 class LocalLLMProvider(BaseProvider):
     name = "local"
+    redirect_model_prefixes = OPENAI_MODEL_PREFIXES
 
     def __init__(
         self,
@@ -119,7 +117,7 @@ class LocalLLMProvider(BaseProvider):
     # ── helpers ───────────────────────────────────────────────────────────────
 
     def _resolve_model(self, requested: str) -> str:
-        if any(requested.startswith(p) for p in _OPENAI_MODEL_PREFIXES):
+        if any(requested.startswith(p) for p in self.redirect_model_prefixes):
             return self._local_model
         return requested
 
