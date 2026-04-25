@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alert-rules
+  namespace: ai-media-os
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: ai-media-os
+    app.kubernetes.io/component: monitoring
+
+data:
+  ai-media-os-alerts.yml: |
+    groups:
+      - name: ai-media-os-critical
+        rules:
+          - alert: WorkerDown
+            expr: absent(worker_up{job="worker-metrics"} == 1) or max(worker_up{job="worker-metrics"}) < 1
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Celery worker is down"
+              description: "No worker process is reporting as healthy for >2m."
+
+          - alert: QueueStuck
+            expr: sum(celery_queue_size) > 50 and sum(rate(worker_jobs_total{status="success"}[10m])) == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Celery queue appears stuck"
+              description: "Queue depth is high and no successful jobs were processed in 10m."
+
+          - alert: HighApiLatency
+            expr: histogram_quantile(0.95, sum(rate(api_request_latency_seconds_bucket[5m])) by (le)) > 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High API latency"
+              description: "p95 API latency is above 1 second for 5 minutes."
+
+          - alert: DatabaseIssues
+            expr: min(db_health_status) < 1
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Database health check failing"
+              description: "FastAPI DB health probe reports unhealthy state for >2m."

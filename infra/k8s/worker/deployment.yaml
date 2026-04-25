@@ -69,6 +69,10 @@ spec:
         - name: worker
           image: your-registry.io/ai-media-os/worker:latest
           imagePullPolicy: Always
+          ports:
+            - name: metrics
+              containerPort: 9108
+              protocol: TCP
           command:
             - celery
             - -A

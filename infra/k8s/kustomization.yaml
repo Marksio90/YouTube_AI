@@ -32,6 +32,16 @@ resources:
   - frontend/service.yaml
   - frontend/hpa.yaml
 
+
+  # ── Observability ───────────────────────────────────────────────────────
+  - monitoring/prometheus-configmap.yaml
+  - monitoring/prometheus-alerts-configmap.yaml
+  - monitoring/prometheus-deployment.yaml
+  - monitoring/exporters.yaml
+  - monitoring/worker-metrics-service.yaml
+  - monitoring/grafana-dashboards-configmap.yaml
+  - monitoring/grafana-deployment.yaml
+
   # ── Routing ───────────────────────────────────────────────────────────────
   - ingress/ingress.yaml
 
