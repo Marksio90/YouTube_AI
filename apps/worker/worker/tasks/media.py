@@ -1,8 +1,9 @@
 """
-Media tasks — audio and thumbnail generation (mock implementations).
+Media tasks — audio, video render foundation, and thumbnail generation.
 
 Task names:
   worker.tasks.media.generate_audio      (per script)
+  worker.tasks.media.render_video        (per video)
   worker.tasks.media.generate_thumbnail  (per publication)
 """
 

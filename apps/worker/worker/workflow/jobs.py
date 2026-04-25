@@ -141,6 +141,30 @@ class AudioJob(BaseWorkflowJob):
         return out
 
 
+class RenderJob(BaseWorkflowJob):
+    """Build timeline and render video from audio + scene assets."""
+
+    step_type = "render"
+    celery_task_name = "worker.tasks.media.render_video"
+    celery_queue = "media"
+
+    def build_payload(self, ctx: WorkflowContext, step_config: dict) -> dict:
+        return {
+            "video_id": ctx.require("video_id", self.step_type),
+            "audio_url": ctx.require("audio_url", self.step_type),
+            "scene_plan": step_config.get("scene_plan") or ctx.require("scene_plan", self.step_type),
+            "assets": step_config.get("assets") or ctx.get("assets") or [],
+            "engine": step_config.get("engine") or ctx.get("engine") or "mock-compositor-v1",
+        }
+
+    def extract_output(self, result: dict) -> dict:
+        out = {}
+        for k in ("video_url", "media_url", "duration_seconds", "timeline", "engine"):
+            if k in result:
+                out[k] = result[k]
+        return out
+
+
 class VisualsJob(BaseWorkflowJob):
     """Generate background visuals / B-roll imagery for the video."""
 
@@ -282,6 +306,7 @@ JOB_REGISTRY: dict[str, type[BaseWorkflowJob]] = {
     "script":      ScriptJob,
     "compliance":  ComplianceJob,
     "audio":       AudioJob,
+    "render":      RenderJob,
     "visuals":     VisualsJob,
     "thumbnail":   ThumbnailJob,
     "metadata":    MetadataJob,
