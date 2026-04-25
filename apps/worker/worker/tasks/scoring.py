@@ -20,6 +20,7 @@ from sqlalchemy import text
 from worker.celery_app import app
 from worker.db import get_db_session
 from worker.idempotency import guard as idp
+from worker.tasks.error_handling import TASK_FAILURE_EXCEPTIONS, is_retryable_error, log_task_failure
 
 log = structlog.get_logger(__name__)
 
@@ -60,9 +61,18 @@ def compute_channel_score(
         idp.set_result(idp_key, result, ttl=3600 * 6)
         log_.info("compute_channel_score.done", score=result.get("score"))
         return result
-    except Exception as exc:
-        log_.error("compute_channel_score.failed", error=str(exc))
-        raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="compute_channel_score",
+            entity_id=channel_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+        raise
 
 
 async def _run_channel_score(channel_id: str, owner_id: str, period_days: int) -> dict:
@@ -116,9 +126,18 @@ def generate_recommendations(
         idp.set_result(idp_key, result, ttl=3600 * 12)
         log_.info("generate_recommendations.done", count=result.get("count"))
         return result
-    except Exception as exc:
-        log_.error("generate_recommendations.failed", error=str(exc))
-        raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="generate_recommendations",
+            entity_id=channel_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+        raise
 
 
 async def _run_recommendations(channel_id: str, period_days: int) -> dict:

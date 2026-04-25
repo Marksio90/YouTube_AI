@@ -16,6 +16,7 @@ from celery import Task
 from worker.celery_app import app
 from worker.db import get_db_session
 from worker.idempotency import guard as idp
+from worker.tasks.error_handling import TASK_FAILURE_EXCEPTIONS, is_retryable_error, log_task_failure
 from worker import registry
 from worker.agents.compliance import ComplianceAgent, ComplianceInput
 from worker.agents.metadata import MetadataAgent, MetadataInput
@@ -103,10 +104,19 @@ def generate_script(
                     idp_key=idp_key,
                 )
             )
-    except Exception as exc:
-        log_.error("generate_script.failed", error=str(exc), retries=self.request.retries)
-        asyncio.run(_mark_task_failure(task_id, str(exc), self.request.retries))
-        raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="generate_script",
+            entity_id=channel_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            asyncio.run(_mark_task_failure(task_id, str(exc), self.request.retries))
+            raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+        raise
 
 
 async def _run_generate_script(
@@ -224,10 +234,19 @@ def generate_brief(self, *, channel_id: str, topic_id: str) -> dict[str, Any]:
     try:
         with idp.lock(idp_key, task_id=task_id):
             return asyncio.run(_run_generate_brief(self, task_id, channel_id, topic_id, idp_key))
-    except Exception as exc:
-        log_.error("generate_brief.failed", error=str(exc))
-        asyncio.run(_mark_task_failure(task_id, str(exc), self.request.retries))
-        raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="generate_brief",
+            entity_id=topic_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            asyncio.run(_mark_task_failure(task_id, str(exc), self.request.retries))
+            raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+        raise
 
 
 async def _run_generate_brief(task, task_id, channel_id, topic_id, idp_key) -> dict:
@@ -320,9 +339,18 @@ def analyze_seo(self, *, script_id: str) -> dict[str, Any]:
     try:
         with idp.lock(idp_key, task_id=task_id):
             return asyncio.run(_run_analyze_seo(self, task_id, script_id, idp_key))
-    except Exception as exc:
-        log_.error("analyze_seo.failed", error=str(exc))
-        raise self.retry(exc=exc)
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="analyze_seo",
+            entity_id=script_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            raise self.retry(exc=exc)
+        raise
 
 
 async def _run_analyze_seo(task, task_id, script_id, idp_key) -> dict:
@@ -386,9 +414,18 @@ def check_compliance(self, *, script_id: str) -> dict[str, Any]:
     try:
         with idp.lock(idp_key, task_id=task_id):
             return asyncio.run(_run_check_compliance(self, task_id, script_id, idp_key))
-    except Exception as exc:
-        log_.error("check_compliance.failed", error=str(exc))
-        raise self.retry(exc=exc)
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="check_compliance",
+            entity_id=script_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            raise self.retry(exc=exc)
+        raise
 
 
 async def _run_check_compliance(task, task_id, script_id, idp_key) -> dict:
@@ -495,7 +532,7 @@ async def _mark_task_failure(task_id: str, error: str, retry_count: int) -> None
     try:
         async with get_db_session() as db:
             await registry.record_retry(db, task_id=task_id, retry_count=retry_count, error=error)
-    except Exception:
+    except (OSError, RuntimeError):
         pass  # registry failure must never mask the original error
 
 

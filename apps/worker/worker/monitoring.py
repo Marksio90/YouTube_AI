@@ -7,6 +7,7 @@ from celery import signals
 from celery.app.base import Celery
 from prometheus_client import Counter, Gauge, start_http_server
 from redis import Redis
+from redis.exceptions import RedisError
 
 from worker.config import settings
 
@@ -47,7 +48,7 @@ def _collect_queue_metrics() -> None:
         try:
             size = client.llen(name)
             QUEUE_SIZE.labels(queue=name).set(size)
-        except Exception:
+        except (RedisError, OSError):
             QUEUE_SIZE.labels(queue=name).set(0)
 
 
@@ -60,7 +61,7 @@ def _collect_worker_online_metric() -> None:
         inspector = _CELERY_APP.control.inspect(timeout=1.0)
         ping = inspector.ping() or {}
         CELERY_WORKERS_ONLINE.set(float(len(ping)))
-    except Exception:
+    except (AttributeError, RuntimeError, OSError):
         CELERY_WORKERS_ONLINE.set(0)
 
 

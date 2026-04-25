@@ -17,6 +17,7 @@ from sqlalchemy import text
 from worker.celery_app import app
 from worker.db import get_db_session
 from worker.idempotency import guard as idp
+from worker.tasks.error_handling import TASK_FAILURE_EXCEPTIONS, is_retryable_error, log_task_failure
 from worker import registry
 from worker.agents.recommender import RecommenderAgent
 
@@ -64,10 +65,19 @@ def generate_recommendations(
     try:
         with idp.lock(idp_key, task_id=task_id):
             return asyncio.run(_run_recommendations(self, task_id, channel_id, idp_key))
-    except Exception as exc:
-        log_.error("generate_recommendations.failed", error=str(exc))
-        asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
-        raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="generate_recommendations",
+            entity_id=channel_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
+            raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+        raise
 
 
 async def _run_recommendations(task, task_id, channel_id, idp_key) -> dict:
@@ -220,5 +230,5 @@ async def _fail_registry(task_id: str, error: str, retry_count: int) -> None:
     try:
         async with get_db_session() as db:
             await registry.record_retry(db, task_id=task_id, retry_count=retry_count, error=error)
-    except Exception:
+    except (OSError, RuntimeError):
         pass

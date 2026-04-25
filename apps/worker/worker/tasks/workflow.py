@@ -53,8 +53,15 @@ def run_workflow(self, *, run_id: str) -> dict[str, Any]:
         log_.warning("run_workflow.soft_time_limit")
         asyncio.run(_mark_run_paused(run_id, reason="soft_time_limit"))
         return {"status": "paused", "run_id": run_id, "reason": "soft_time_limit"}
-    except Exception as exc:
-        log_.error("run_workflow.unhandled_error", error=str(exc))
+    except (RuntimeError, ValueError, LookupError, OSError) as exc:
+        log_.error(
+            "run_workflow.unhandled_error",
+            task_name="run_workflow",
+            entity_id=run_id,
+            error_type=type(exc).__name__,
+            retryable=False,
+            error=str(exc),
+        )
         asyncio.run(_mark_run_failed(run_id, error=str(exc)))
         return {"status": "failed", "run_id": run_id, "error": str(exc)}
 
@@ -159,8 +166,15 @@ def resume_workflow(self, *, run_id: str) -> dict[str, Any]:
 
     try:
         return asyncio.run(_resume())
-    except Exception as exc:
-        log_.error("resume_workflow.error", error=str(exc))
+    except (RuntimeError, ValueError, LookupError, OSError) as exc:
+        log_.error(
+            "resume_workflow.error",
+            task_name="resume_workflow",
+            entity_id=run_id,
+            error_type=type(exc).__name__,
+            retryable=False,
+            error=str(exc),
+        )
         return {"status": "error", "run_id": run_id, "error": str(exc)}
 
 
@@ -218,6 +232,13 @@ def cancel_workflow(self, *, run_id: str, actor: str = "system") -> dict[str, An
 
     try:
         return asyncio.run(_cancel())
-    except Exception as exc:
-        log_.error("cancel_workflow.error", error=str(exc))
+    except (RuntimeError, ValueError, LookupError, OSError) as exc:
+        log_.error(
+            "cancel_workflow.error",
+            task_name="cancel_workflow",
+            entity_id=run_id,
+            error_type=type(exc).__name__,
+            retryable=False,
+            error=str(exc),
+        )
         return {"status": "error", "run_id": run_id, "error": str(exc)}
