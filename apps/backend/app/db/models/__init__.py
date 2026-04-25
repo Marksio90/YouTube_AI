@@ -3,7 +3,13 @@ from app.db.models.audio_job import AudioJob
 from app.db.models.compliance import ComplianceCheck, RiskFlag
 from app.db.models.brief import Brief
 from app.db.models.channel import Channel
-from app.db.models.monetization import AffiliateLink, RevenueStream
+from app.db.models.monetization import (
+    AffiliateLink,
+    AffiliateLinkClick,
+    Campaign,
+    PublicationAffiliateLink,
+    RevenueStream,
+)
 from app.db.models.organization import Organization
 from app.db.models.performance import PerformanceScore, Recommendation
 from app.db.models.pipeline import Pipeline, PipelineRun, PipelineStepResult
@@ -32,6 +38,9 @@ __all__ = [
     "Recommendation",
     "RevenueStream",
     "AffiliateLink",
+    "AffiliateLinkClick",
+    "Campaign",
+    "PublicationAffiliateLink",
     "ComplianceCheck",
     "RiskFlag",
     "WorkflowRun",
