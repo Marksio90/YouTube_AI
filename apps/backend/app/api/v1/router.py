@@ -12,6 +12,7 @@ from app.api.v1.endpoints.publications import router as publications_router
 from app.api.v1.endpoints.scripts import router as scripts_router
 from app.api.v1.endpoints.topics import router as topics_router
 from app.api.v1.endpoints.workflows import router as workflows_router
+from app.api.v1.endpoints.optimization import router as optimization_router
 from app.api.v1.endpoints.thumbnails import router as thumbnails_router
 from app.api.v1.endpoints.youtube import router as youtube_router
 
@@ -30,4 +31,5 @@ api_router.include_router(dashboard_router)
 api_router.include_router(pipelines_router)
 api_router.include_router(workflows_router)
 api_router.include_router(thumbnails_router)
+api_router.include_router(optimization_router)
 api_router.include_router(youtube_router)

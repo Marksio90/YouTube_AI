@@ -103,6 +103,26 @@ def enqueue_generate_audio(
     return result.id
 
 
+def enqueue_optimize_channel(
+    *,
+    channel_id: str,
+    owner_id: str,
+    period_days: int = 28,
+    force: bool = False,
+) -> str:
+    result = send_task(
+        task_name="worker.tasks.optimization.optimize_channel",
+        kwargs={
+            "channel_id": channel_id,
+            "owner_id": owner_id,
+            "period_days": period_days,
+            "force": force,
+        },
+        queue="ai",
+    )
+    return result.id
+
+
 def enqueue_generate_thumbnails(
     *,
     publication_id: str,
