@@ -42,7 +42,7 @@ dependencies = [
     "httpx==0.28.1",
 
     # Storage
-    "boto3==1.35.88",
+    "boto3==1.42.96",
 
     # Crypto (token encryption for YouTube OAuth)
     "cryptography==44.0.0",
