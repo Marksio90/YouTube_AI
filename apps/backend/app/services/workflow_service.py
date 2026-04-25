@@ -322,7 +322,7 @@ class WorkflowService:
         run.context = {**(run.context or {}), **updates}
         run = await self._run_repo.save(run)
         await self._run_repo.append_audit_event(
-            run_id=run_id, event_type="manual.inject_result", actor=actor,
+            run_id=run_id, event_type="manual.patch_context", actor=actor,
             data={"updated_keys": list(updates.keys())},
         )
         return run

@@ -62,6 +62,7 @@ class EventType(str, enum.Enum):
     manual_retry_job     = "manual.retry_job"
     manual_skip_job      = "manual.skip_job"
     manual_inject_result = "manual.inject_result"
+    manual_patch_context = "manual.patch_context"
 
     # Engine events
     engine_restart = "engine.restart"
