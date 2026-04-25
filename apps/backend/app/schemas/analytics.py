@@ -174,6 +174,9 @@ RecommendationType = Literal[
     "kill_topic",
     "scale_topic",
     "localize",
+    "optimize_title",
+    "change_format",
+    "increase_cadence",
 ]
 
 RecommendationPriority = Literal["critical", "high", "medium", "low"]

@@ -66,6 +66,7 @@ app.conf.task_routes = {
     "worker.tasks.ai.*":               {"queue": "ai"},
     "worker.tasks.topics.*":           {"queue": "ai"},
     "worker.tasks.recommendations.*":  {"queue": "ai"},
+    "worker.tasks.optimization.*":     {"queue": "ai"},
 
     # Media generation
     "worker.tasks.media.*":            {"queue": "media"},
@@ -112,6 +113,12 @@ app.conf.beat_schedule = {
         "task": "worker.tasks.scoring.generate_all_recommendations",
         "schedule": crontab(hour=5, minute=0),
         "options": {"queue": "analytics"},
+    },
+    # Run content optimization brain weekly (Wednesday 07:00 UTC — after scores + recs)
+    "weekly-content-optimization": {
+        "task": "worker.tasks.optimization.optimize_all_channels",
+        "schedule": crontab(hour=7, minute=0, day_of_week=3),
+        "options": {"queue": "ai"},
     },
 }
 

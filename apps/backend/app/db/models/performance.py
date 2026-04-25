@@ -117,6 +117,9 @@ class RecommendationType(str, enum.Enum):
     kill_topic        = "kill_topic"
     scale_topic       = "scale_topic"
     localize          = "localize"
+    optimize_title    = "optimize_title"
+    change_format     = "change_format"
+    increase_cadence  = "increase_cadence"
 
 
 class RecommendationPriority(str, enum.Enum):
