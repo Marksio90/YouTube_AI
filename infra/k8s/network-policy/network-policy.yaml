@@ -227,7 +227,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/component: monitoring
+      app.kubernetes.io/name: flower
   policyTypes:
     - Ingress
     - Egress
@@ -245,3 +245,193 @@ spec:
               app.kubernetes.io/component: cache
       ports:
         - port: 6379
+
+---
+# ── Monitoring scrapes: allow Prometheus ingress to metrics endpoints ───────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-scrape-ingress
+  namespace: ai-media-os
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: ["backend", "worker", "redis-exporter", "postgres-exporter"]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 8000
+        - port: 9108
+        - port: 9121
+        - port: 9187
+---
+# ── Monitoring egress: Prometheus -> services, Grafana -> Prometheus ─────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monitoring-egress
+  namespace: ai-media-os
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: ["prometheus", "grafana"]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: backend
+      ports:
+        - port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: worker
+      ports:
+        - port: 9108
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis-exporter
+      ports:
+        - port: 9121
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-exporter
+      ports:
+        - port: 9187
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 9090
+
+---
+# ── Logging ingest: Logstash accepts from Filebeat ───────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: logstash-ingress
+  namespace: ai-media-os
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: logstash
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: filebeat
+      ports:
+        - port: 5044
+---
+# ── Logging egress paths between ELK components ──────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: logging-egress
+  namespace: ai-media-os
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: ["filebeat", "logstash", "kibana"]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: logstash
+      ports:
+        - port: 5044
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: elasticsearch
+      ports:
+        - port: 9200
+    - ports:
+        - port: 443
+          protocol: TCP
+---
+# ── Elasticsearch ingress from Logstash + Kibana ─────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: elasticsearch-ingress
+  namespace: ai-media-os
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: elasticsearch
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: ["logstash", "kibana"]
+      ports:
+        - port: 9200
+
+---
+# ── Prometheus adapter ingress from API server ───────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-adapter-ingress
+  namespace: ai-media-os
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-adapter
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 6443
+---
+# ── Prometheus adapter egress to Prometheus + API server ─────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-adapter-egress
+  namespace: ai-media-os
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-adapter
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - port: 9090
+    - ports:
+        - port: 443
+          protocol: TCP

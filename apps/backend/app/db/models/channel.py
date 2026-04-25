@@ -11,6 +11,7 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 if TYPE_CHECKING:
     from app.db.models.analytics import AnalyticsSnapshot
     from app.db.models.brief import Brief
+    from app.db.models.organization import Organization
     from app.db.models.publication import Publication
     from app.db.models.topic import Topic
     from app.db.models.user import User
@@ -26,6 +27,12 @@ class ChannelStatus(str, enum.Enum):
 class Channel(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "channels"
 
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -54,6 +61,7 @@ class Channel(Base, UUIDMixin, TimestampMixin):
     refresh_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     token_expiry: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
+    organization: Mapped["Organization"] = relationship("Organization", back_populates="channels")
     owner: Mapped["User"] = relationship("User", back_populates="channels")
     topics: Mapped[list["Topic"]] = relationship(
         "Topic", back_populates="channel", lazy="select"
