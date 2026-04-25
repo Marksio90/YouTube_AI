@@ -17,9 +17,9 @@ from worker.celery_app import app
 from worker.db import get_db_session
 from worker.idempotency import guard as idp
 from worker import registry
-from worker.agents.compliance_checker import ComplianceCheckerAgent
-from worker.agents.script_writer import ScriptWriterAgent
-from worker.agents.seo_analyzer import SEOAnalyzerAgent
+from worker.agents.compliance import ComplianceAgent, ComplianceInput
+from worker.agents.metadata import MetadataAgent, MetadataInput
+from worker.agents.scriptwriter import ScriptwriterAgent, ScriptwriterInput
 
 log = structlog.get_logger(__name__)
 
@@ -28,27 +28,27 @@ log = structlog.get_logger(__name__)
 
 class AITask(Task):
     abstract = True
-    _script_writer: ScriptWriterAgent | None = None
-    _seo_analyzer: SEOAnalyzerAgent | None = None
-    _compliance_checker: ComplianceCheckerAgent | None = None
+    _scriptwriter: ScriptwriterAgent | None = None
+    _metadata: MetadataAgent | None = None
+    _compliance: ComplianceAgent | None = None
 
     @property
-    def script_writer(self) -> ScriptWriterAgent:
-        if self._script_writer is None:
-            self._script_writer = ScriptWriterAgent()
-        return self._script_writer
+    def scriptwriter(self) -> ScriptwriterAgent:
+        if self._scriptwriter is None:
+            self._scriptwriter = ScriptwriterAgent()
+        return self._scriptwriter
 
     @property
-    def seo_analyzer(self) -> SEOAnalyzerAgent:
-        if self._seo_analyzer is None:
-            self._seo_analyzer = SEOAnalyzerAgent()
-        return self._seo_analyzer
+    def metadata(self) -> MetadataAgent:
+        if self._metadata is None:
+            self._metadata = MetadataAgent()
+        return self._metadata
 
     @property
-    def compliance_checker(self) -> ComplianceCheckerAgent:
-        if self._compliance_checker is None:
-            self._compliance_checker = ComplianceCheckerAgent()
-        return self._compliance_checker
+    def compliance(self) -> ComplianceAgent:
+        if self._compliance is None:
+            self._compliance = ComplianceAgent()
+        return self._compliance
 
 
 def _short_hash(*parts: str) -> str:
@@ -134,37 +134,47 @@ async def _run_generate_script(
 
     # Step 1 — Generate script
     self_update(task, "generating_script", 10)
-    script_data = await task.script_writer.generate(
-        topic=topic,
-        tone=tone,
-        target_duration_seconds=target_duration_seconds,
-        keywords=keywords,
-        channel_niche=channel_info.get("niche", "general"),
-        additional_context=additional_context,
+    script_out = await task.scriptwriter.run(
+        ScriptwriterInput(
+            topic=topic,
+            niche=channel_info.get("niche", "general"),
+            tone=tone,
+            target_duration_seconds=target_duration_seconds,
+            keywords=keywords,
+            style_notes=additional_context or "",
+        )
     )
+    script_data = _script_output_to_legacy(script_out)
 
     async with get_db_session() as db:
         await registry.record_progress(db, task_id=task_id, progress=40, step="seo_analysis")
 
     # Step 2 — SEO analysis
     self_update(task, "seo_analysis", 40)
-    seo_data = await task.seo_analyzer.analyze(
-        title=script_data["title"],
-        script_body=script_data["body"],
-        keywords=keywords,
-        niche=channel_info.get("niche", "general"),
+    metadata_out = await task.metadata.run(
+        MetadataInput(
+            title=script_data["title"],
+            script=script_data["body"],
+            niche=channel_info.get("niche", "general"),
+            target_keywords=keywords,
+            language="en",
+        )
     )
+    seo_data = _metadata_output_to_seo(metadata_out)
 
     async with get_db_session() as db:
         await registry.record_progress(db, task_id=task_id, progress=70, step="compliance_check")
 
     # Step 3 — Compliance
     self_update(task, "compliance_check", 70)
-    compliance_data = await task.compliance_checker.check(
-        title=script_data["title"],
-        script=f"{script_data.get('hook', '')} {script_data.get('body', '')}",
-        channel_niche=channel_info.get("niche", "general"),
+    compliance_out = await task.compliance.run(
+        ComplianceInput(
+            title=script_data["title"],
+            script=f"{script_data.get('hook', '')} {script_data.get('body', '')}".strip(),
+            niche=channel_info.get("niche", "general"),
+        )
     )
+    compliance_data = _compliance_output_to_legacy(compliance_out)
 
     # Step 4 — Persist
     self_update(task, "saving", 90)
@@ -246,14 +256,17 @@ async def _run_generate_brief(task, task_id, channel_id, topic_id, idp_key) -> d
 
     self_update(task, "generating_brief", 20)
 
-    brief_data = await task.script_writer.generate(
-        topic=topic_row["title"],
-        tone="educational",
-        target_duration_seconds=600,
-        keywords=list(topic_row["keywords"] or []),
-        channel_niche=channel_info.get("niche", "general"),
-        additional_context=topic_row.get("description"),
+    brief_out = await task.scriptwriter.run(
+        ScriptwriterInput(
+            topic=topic_row["title"],
+            niche=channel_info.get("niche", "general"),
+            tone="educational",
+            target_duration_seconds=600,
+            keywords=list(topic_row["keywords"] or []),
+            style_notes=topic_row.get("description") or "",
+        )
     )
+    brief_data = _script_output_to_legacy(brief_out)
 
     brief_id = str(uuid.uuid4())
     async with get_db_session() as db:
@@ -332,11 +345,15 @@ async def _run_analyze_seo(task, task_id, script_id, idp_key) -> dict:
         await registry.record_start(db, task_id=task_id, task_name="analyze_seo",
                                     entity_type="script", entity_id=script_id)
 
-    seo = await task.seo_analyzer.analyze(
-        title=row["title"],
-        script_body=row["body"],
-        keywords=list(row["keywords"] or []),
+    metadata_out = await task.metadata.run(
+        MetadataInput(
+            title=row["title"],
+            script=row["body"],
+            niche="general",
+            target_keywords=list(row["keywords"] or []),
+        )
     )
+    seo = _metadata_output_to_seo(metadata_out)
 
     async with get_db_session() as db:
         await db.execute(
@@ -398,11 +415,14 @@ async def _run_check_compliance(task, task_id, script_id, idp_key) -> dict:
         await registry.record_start(db, task_id=task_id, task_name="check_compliance",
                                     entity_type="script", entity_id=script_id)
 
-    result = await task.compliance_checker.check(
-        title=row["title"],
-        script=f"{row['hook']} {row['body']}",
-        channel_niche=row.get("niche", "general"),
+    compliance_out = await task.compliance.run(
+        ComplianceInput(
+            title=row["title"],
+            script=f"{row['hook']} {row['body']}".strip(),
+            niche=row.get("niche", "general"),
+        )
     )
+    result = _compliance_output_to_legacy(compliance_out)
 
     new_status = "review" if result.get("overall_status") == "PASS" else "draft"
     async with get_db_session() as db:
@@ -486,3 +506,53 @@ async def _mark_task_failure(task_id: str, error: str, retry_count: int) -> None
 def _as_json(v) -> str:
     import json
     return json.dumps(v)
+
+
+def _script_output_to_legacy(output) -> dict[str, Any]:
+    body_sections = [s.content for s in output.sections if s.type not in {"hook", "cta", "outro"}]
+    cta_section = next((s.content for s in output.sections if s.type == "cta"), "")
+    return {
+        "title": output.title,
+        "hook": output.hook,
+        "body": "\n\n".join(body_sections).strip(),
+        "cta": cta_section,
+        "keywords": list(output.keyword_placement.keys()),
+        "estimated_duration_seconds": output.estimated_duration_seconds,
+    }
+
+
+def _metadata_output_to_seo(output) -> dict[str, Any]:
+    keyword_values = list(output.keyword_density.values())
+    keyword_coverage = round((sum(keyword_values) / len(keyword_values)) * 300, 2) if keyword_values else 0.0
+    title_score = 9.0 if len(output.optimized_title) <= 100 else 6.0
+    overall = round(min(10.0, max(0.0, (title_score * 0.4) + (keyword_coverage * 0.6))), 2)
+    return {
+        "overall_score": overall,
+        "title_score": round(title_score, 2),
+        "keyword_coverage": keyword_coverage,
+        "suggested_title": output.optimized_title,
+        "suggested_tags": output.tags,
+        "improvement_notes": output.card_suggestions,
+        "description": output.description,
+        "hashtags": output.hashtags,
+        "chapters": [c.model_dump() for c in output.chapters],
+    }
+
+
+def _compliance_output_to_legacy(output) -> dict[str, Any]:
+    if output.risk_level in {"safe", "low"}:
+        status = "PASS"
+    elif output.risk_level in {"medium", "high"}:
+        status = "WARNING"
+    else:
+        status = "BLOCK"
+    return {
+        "overall_status": status,
+        "compliance_score": output.advertiser_friendly_score,
+        "monetization_eligible": output.monetization_eligible,
+        "issues": [v.model_dump() for v in output.violations],
+        "summary": output.review_notes,
+        "risk_level": output.risk_level,
+        "warnings": output.warnings,
+        "suggestions": output.suggestions,
+    }
