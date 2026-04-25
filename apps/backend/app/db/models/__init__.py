@@ -12,6 +12,7 @@ from app.db.models.script import Script
 from app.db.models.topic import Topic
 from app.db.models.user import User
 from app.db.models.workflow import WorkflowAuditEvent, WorkflowJob, WorkflowRun
+from app.db.models.thumbnail import Thumbnail
 from app.db.models.video_render_job import VideoRenderJob
 
 __all__ = [
@@ -36,4 +37,6 @@ __all__ = [
     "WorkflowJob",
     "WorkflowAuditEvent",
     "AudioJob",
+    "Thumbnail",
+    "VideoRenderJob",
 ]

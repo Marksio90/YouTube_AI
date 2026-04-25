@@ -103,13 +103,19 @@ def enqueue_generate_audio(
     return result.id
 
 
-def enqueue_generate_thumbnail(
+def enqueue_generate_thumbnails(
     *,
     publication_id: str,
-    style: str = "bold_text",
+    channel_style: str = "clean_modern",
+    count: int = 3,
 ) -> str:
-    result = send_task(task_name="worker.tasks.media.generate_thumbnail",
-        kwargs={"publication_id": publication_id, "style": style},
+    result = send_task(
+        task_name="worker.tasks.media.generate_thumbnail",
+        kwargs={
+            "publication_id": publication_id,
+            "channel_style": channel_style,
+            "count": count,
+        },
         queue="media",
     )
     return result.id
