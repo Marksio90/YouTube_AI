@@ -47,6 +47,19 @@ class ScriptwriterOutput(AgentOutput):
     keyword_placement: dict[str, list[str]]
     production_notes: str
 
+    @property
+    def body(self) -> str:
+        body_sections = [s.content for s in self.sections if s.type not in {"hook", "cta", "outro"}]
+        return "\n\n".join(body_sections).strip()
+
+    @property
+    def cta(self) -> str:
+        return next((s.content for s in self.sections if s.type == "cta"), "")
+
+    @property
+    def keywords(self) -> list[str]:
+        return list(self.keyword_placement.keys())
+
 
 # ── prompts ───────────────────────────────────────────────────────────────────
 
@@ -215,6 +228,8 @@ def _mock_script_sections(topic: str, niche: str, tone: str, target_dur: int, ho
 # ── agent ─────────────────────────────────────────────────────────────────────
 
 class ScriptwriterAgent(BaseAgent[ScriptwriterInput, ScriptwriterOutput]):
+    # Contract: output always guarantees `title`, `hook`, `sections`, `body`, `cta`,
+    # `keywords`, and `estimated_duration_seconds`.
     agent_name = "scriptwriter"
     default_temperature = 0.75
 

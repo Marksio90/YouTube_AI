@@ -14,7 +14,7 @@ New agents (full BaseAgent interface with tracing + provider abstraction):
 Legacy agents (migrated to new BaseAgent, backward-compatible API):
   TopicResearcherAgent   — discover() + score() for tasks/topics.py
   RecommenderAgent       — generate() for tasks/recommendations.py
-  ScriptWriterAgent, SEOAnalyzerAgent, ComplianceCheckerAgent — tasks/ai.py
+  SEOAnalyzerAgent, ComplianceCheckerAgent — older compatibility interfaces
 
 Provider selection via env:
   LLM_PROVIDER=openai   → OpenAIProvider (default, gpt-4o-mini)
@@ -55,7 +55,6 @@ from worker.agents.optimization import OptimizationAgent, OptimizationInput, Opt
 # ── legacy agents (backward-compatible) ──────────────────────────────────────
 from worker.agents.topic_researcher import TopicResearcherAgent
 from worker.agents.recommender import RecommenderAgent
-from worker.agents.script_writer import ScriptWriterAgent
 from worker.agents.seo_analyzer import SEOAnalyzerAgent
 from worker.agents.compliance_checker import ComplianceCheckerAgent
 
@@ -90,7 +89,6 @@ __all__ = [
     # legacy
     "TopicResearcherAgent",
     "RecommenderAgent",
-    "ScriptWriterAgent",
     "SEOAnalyzerAgent",
     "ComplianceCheckerAgent",
 ]
