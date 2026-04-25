@@ -1,4 +1,5 @@
 from app.db.models.analytics import AnalyticsSnapshot
+from app.db.models.audio_job import AudioJob
 from app.db.models.compliance import ComplianceCheck, RiskFlag
 from app.db.models.brief import Brief
 from app.db.models.channel import Channel
@@ -33,4 +34,5 @@ __all__ = [
     "WorkflowRun",
     "WorkflowJob",
     "WorkflowAuditEvent",
+    "AudioJob",
 ]

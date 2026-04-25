@@ -64,6 +64,10 @@ class Script(Base, UUIDMixin, TimestampMixin):
     seo_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     compliance_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    audio_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    audio_duration_seconds: Mapped[float | None] = mapped_column(Numeric(8, 2), nullable=True)
+    audio_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    audio_voice_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     brief: Mapped["Brief | None"] = relationship("Brief", back_populates="scripts")
     publications: Mapped[list["Publication"]] = relationship(

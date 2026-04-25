@@ -85,10 +85,19 @@ def enqueue_generate_recommendations(*, channel_id: str, force: bool = False) ->
 def enqueue_generate_audio(
     *,
     script_id: str,
+    provider: str = "openai",
     voice_id: str = "alloy",
+    tempo: float = 1.0,
+    tone: float = 0.0,
 ) -> str:
     result = send_task(task_name="worker.tasks.media.generate_audio",
-        kwargs={"script_id": script_id, "voice_id": voice_id},
+        kwargs={
+            "script_id": script_id,
+            "provider": provider,
+            "voice_id": voice_id,
+            "tempo": tempo,
+            "tone": tone,
+        },
         queue="media",
     )
     return result.id

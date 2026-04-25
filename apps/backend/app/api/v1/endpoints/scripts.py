@@ -4,7 +4,13 @@ from fastapi import APIRouter, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
 from app.schemas.common import PaginatedResponse, TaskResponse
-from app.schemas.script import ScriptCreate, ScriptGenerateRequest, ScriptRead, ScriptUpdate
+from app.schemas.script import (
+    ScriptAudioGenerateRequest,
+    ScriptCreate,
+    ScriptGenerateRequest,
+    ScriptRead,
+    ScriptUpdate,
+)
 from app.services.script import ScriptService
 
 router = APIRouter(prefix="/scripts", tags=["scripts"])
@@ -46,6 +52,17 @@ async def generate_script(
 ) -> TaskResponse:
     svc = ScriptService(db)
     return await svc.generate(payload, owner_id=current_user.id)
+
+
+@router.post("/{script_id}/generate-audio", response_model=TaskResponse)
+async def generate_script_audio(
+    script_id: uuid.UUID,
+    payload: ScriptAudioGenerateRequest,
+    current_user: CurrentUser,
+    db: DB,
+) -> TaskResponse:
+    svc = ScriptService(db)
+    return await svc.generate_audio(script_id, payload, owner_id=current_user.id)
 
 
 @router.get("/{script_id}", response_model=ScriptRead)
