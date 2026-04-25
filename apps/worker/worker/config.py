@@ -77,8 +77,14 @@ class WorkerSettings(BaseSettings):
     # ── App ───────────────────────────────────────────────────────────────────
     app_env: str = "development"
     log_level: str = "INFO"
-    secret_key: str = ""  # used for token decryption (same as backend)
+    secret_key: str
     mock_media_base_url: str = "https://mock-media.local"
+
+    @model_validator(mode="after")
+    def validate_secret_key(self) -> "WorkerSettings":
+        if len(self.secret_key) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters")
+        return self
 
 
 settings = WorkerSettings()

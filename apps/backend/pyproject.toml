@@ -27,6 +27,9 @@ dependencies = [
     "passlib[bcrypt]==1.7.4",
     "PyJWT>=2.8.0",
 
+    # Rate limiting
+    "slowapi>=0.1.9",
+
     # Redis
     "redis[hiredis]==5.2.1",
 

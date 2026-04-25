@@ -291,24 +291,6 @@ async def _run_sync_publication(
     async with get_db_session() as db:
         await db.execute(
             text("""
-                UPDATE publications
-                SET view_count    = view_count    + :views,
-                    like_count    = like_count    + :likes,
-                    comment_count = comment_count + :comments,
-                    revenue_usd   = revenue_usd   + :rev,
-                    updated_at    = NOW()
-                WHERE id = :id
-            """),
-            {
-                "id":       publication_id,
-                "views":    metrics["views"],
-                "likes":    metrics.get("like_count", 0),
-                "comments": metrics.get("comment_count", 0),
-                "rev":      metrics["revenue_usd"],
-            },
-        )
-        await db.execute(
-            text("""
                 INSERT INTO analytics_snapshots
                     (id, channel_id, publication_id, snapshot_date, snapshot_type,
                      views, revenue_usd, cpm, rpm, ctr, watch_time_hours,
@@ -346,6 +328,19 @@ async def _run_sync_publication(
                 "comments":   metrics.get("comment_count", 0),
                 "imp":        metrics.get("impressions", 0),
             },
+        )
+        # Recompute publication totals from snapshots — idempotent regardless of retries
+        await db.execute(
+            text("""
+                UPDATE publications p
+                SET view_count    = (SELECT COALESCE(SUM(s.views), 0)         FROM analytics_snapshots s WHERE s.publication_id = p.id),
+                    like_count    = (SELECT COALESCE(SUM(s.like_count), 0)    FROM analytics_snapshots s WHERE s.publication_id = p.id),
+                    comment_count = (SELECT COALESCE(SUM(s.comment_count), 0) FROM analytics_snapshots s WHERE s.publication_id = p.id),
+                    revenue_usd   = (SELECT COALESCE(SUM(s.revenue_usd), 0)   FROM analytics_snapshots s WHERE s.publication_id = p.id),
+                    updated_at    = NOW()
+                WHERE id = :id
+            """),
+            {"id": publication_id},
         )
         await registry.record_success(db, task_id=task_id, result=metrics)
 
