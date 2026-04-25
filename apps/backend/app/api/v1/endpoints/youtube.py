@@ -1,4 +1,4 @@
-from jose import JWTError, jwt
+import jwt
 from fastapi import APIRouter, HTTPException, Query, Request, status
 
 from app.api.v1.deps import CurrentUser, DB
@@ -49,7 +49,7 @@ async def youtube_callback(
 ) -> YouTubeCallbackResponse:
     try:
         state_data = jwt.decode(state, settings.secret_key, algorithms=[settings.jwt_algorithm])
-    except JWTError:
+    except jwt.PyJWTError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state")
 
     if state_data.get("type") != "youtube_oauth_state":
