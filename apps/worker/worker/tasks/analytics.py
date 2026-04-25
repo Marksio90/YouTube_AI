@@ -38,6 +38,11 @@ from worker.celery_app import app
 from worker.config import settings
 from worker.db import get_db_session
 from worker.idempotency import guard as idp
+from worker.tasks.error_handling import (
+    TASK_FAILURE_EXCEPTIONS,
+    is_retryable_error,
+    log_task_failure,
+)
 from worker import registry
 
 log = structlog.get_logger(__name__)
@@ -67,10 +72,19 @@ def sync_channel(self, *, channel_id: str, date: str) -> dict[str, Any]:
     try:
         with idp.lock(idp_key, task_id=task_id):
             return asyncio.run(_run_sync_channel(self, task_id, channel_id, date, idp_key))
-    except Exception as exc:
-        log_.error("sync_channel.failed", error=str(exc))
-        asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
-        raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="sync_channel",
+            entity_id=channel_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
+            raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+        raise
 
 
 async def _run_sync_channel(task, task_id, channel_id, snapshot_date_str, idp_key) -> dict:
@@ -117,7 +131,7 @@ async def _fetch_channel_metrics(
     if has_token and youtube_channel_id and settings.app_env == "production":
         try:
             return await _real_channel_metrics(channel, snapshot_date, youtube_channel_id)
-        except Exception as exc:
+        except (OSError, TimeoutError, ValueError, RuntimeError) as exc:
             _n = type(exc).__name__
             if "Auth" in _n or "Unauthorized" in _n:
                 await _flag_needs_reauth(channel_id)
@@ -234,9 +248,18 @@ def sync_publication(self, *, publication_id: str, date: str) -> dict[str, Any]:
             return asyncio.run(
                 _run_sync_publication(self, task_id, publication_id, date, idp_key)
             )
-    except Exception as exc:
-        log.error("sync_publication.failed", error=str(exc), publication_id=publication_id)
-        raise self.retry(exc=exc)
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log,
+            task_name="sync_publication",
+            entity_id=publication_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            raise self.retry(exc=exc)
+        raise
 
 
 async def _run_sync_publication(
@@ -343,7 +366,7 @@ async def _fetch_publication_metrics(
             return await _real_publication_metrics(
                 pub, snapshot_date, youtube_video_id, youtube_channel_id
             )
-        except Exception as exc:
+        except (OSError, TimeoutError, ValueError, RuntimeError) as exc:
             log.warning(
                 "sync_publication.api_error_fallback",
                 publication_id=publication_id,
@@ -551,7 +574,7 @@ async def _flag_needs_reauth(channel_id: str) -> None:
                 ),
                 {"id": channel_id},
             )
-    except Exception as exc:
+    except (OSError, RuntimeError) as exc:
         log.error("flag_needs_reauth.failed", channel_id=channel_id, error=str(exc))
 
 
@@ -561,5 +584,5 @@ async def _fail_registry(task_id, error, retry_count):
             await registry.record_retry(
                 db, task_id=task_id, retry_count=retry_count, error=error
             )
-    except Exception:
+    except (OSError, RuntimeError):
         pass

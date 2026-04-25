@@ -19,6 +19,7 @@ from worker.celery_app import app
 from worker.config import settings
 from worker.db import get_db_session
 from worker.idempotency import guard as idp
+from worker.tasks.error_handling import TASK_FAILURE_EXCEPTIONS, is_retryable_error, log_task_failure
 from worker import registry
 
 log = structlog.get_logger(__name__)
@@ -55,10 +56,19 @@ def optimize_channel(
             return asyncio.run(
                 _run_optimize(self, task_id, channel_id, owner_id, period_days, idp_key)
             )
-    except Exception as exc:
-        log_.error("optimize_channel.failed", error=str(exc))
-        asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
-        raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="optimize_channel",
+            entity_id=channel_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
+            raise self.retry(exc=exc, countdown=60 * (self.request.retries + 1))
+        raise
 
 
 async def _run_optimize(
@@ -157,5 +167,5 @@ async def _fail_registry(task_id: str, error: str, retry_count: int) -> None:
     try:
         async with get_db_session() as db:
             await registry.record_retry(db, task_id=task_id, retry_count=retry_count, error=error)
-    except Exception:
+    except (OSError, RuntimeError):
         pass

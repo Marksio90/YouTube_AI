@@ -19,6 +19,7 @@ from worker.celery_app import app
 from worker.config import settings
 from worker.db import get_db_session
 from worker.idempotency import guard as idp
+from worker.tasks.error_handling import TASK_FAILURE_EXCEPTIONS, is_retryable_error, log_task_failure
 from worker import registry
 
 log = structlog.get_logger(__name__)
@@ -76,11 +77,20 @@ def generate_audio(
             )
     except ValueError:
         raise
-    except Exception as exc:
-        log_.error("generate_audio.failed", error=str(exc))
-        asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="generate_audio",
+            entity_id=script_id,
+            exc=exc,
+            retryable=retryable,
+        )
         asyncio.run(_mark_audio_job_failure(task_id=task_id, error=str(exc), attempts=self.request.retries + 1))
-        raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+        if retryable:
+            asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
+            raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+        raise
 
 
 async def _run_generate_audio(
@@ -309,10 +319,19 @@ def generate_thumbnail(
             return asyncio.run(
                 _run_generate_thumbnail(self, task_id, publication_id, channel_style, count, idp_key)
             )
-    except Exception as exc:
-        log_.error("generate_thumbnail.failed", error=str(exc))
-        asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
-        raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="generate_thumbnail",
+            entity_id=publication_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
+            raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+        raise
 
 
 async def _run_generate_thumbnail(
@@ -423,7 +442,7 @@ async def _run_generate_thumbnail(
             if is_top:
                 top_pick_url = image_url
 
-        except Exception as exc:
+        except (RuntimeError, ValueError, OSError) as exc:
             log.warning("generate_thumbnail.variant_failed", thumb_id=thumb_id, error=str(exc))
             async with get_db_session() as db:
                 await db.execute(
@@ -666,12 +685,12 @@ async def _mark_audio_job_failure(*, task_id: str, error: str, attempts: int) ->
                 ),
                 {"task_id": task_id, "error": error[:2000], "attempts": attempts},
             )
-    except Exception:
+    except (OSError, RuntimeError):
         pass
 
 async def _fail_registry(task_id: str, error: str, retry_count: int) -> None:
     try:
         async with get_db_session() as db:
             await registry.record_retry(db, task_id=task_id, retry_count=retry_count, error=error)
-    except Exception:
+    except (OSError, RuntimeError):
         pass

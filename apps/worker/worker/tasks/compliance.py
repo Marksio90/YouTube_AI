@@ -23,6 +23,7 @@ from sqlalchemy import select, text
 
 from worker.celery_app import app
 from worker.db import get_db_session
+from worker.tasks.error_handling import TASK_FAILURE_EXCEPTIONS, is_retryable_error, log_task_failure
 
 log = structlog.get_logger(__name__)
 
@@ -230,9 +231,18 @@ def ai_check_ad_safety(
         asyncio.run(_persist_and_maybe_finalize(check_id, "ad_safety", raw_flags))
         log_.info("ai_check_ad_safety.done", flag_count=len(raw_flags))
         return {"check_id": check_id, "category": "ad_safety", "flags": len(raw_flags)}
-    except Exception as exc:
-        log_.error("ai_check_ad_safety.failed", error=str(exc))
-        raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="ai_check_ad_safety",
+            entity_id=check_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+        raise
 
 
 @app.task(
@@ -260,9 +270,18 @@ def ai_check_copyright(
         asyncio.run(_persist_and_maybe_finalize(check_id, "copyright_risk", raw_flags))
         log_.info("ai_check_copyright.done", flag_count=len(raw_flags))
         return {"check_id": check_id, "category": "copyright_risk", "flags": len(raw_flags)}
-    except Exception as exc:
-        log_.error("ai_check_copyright.failed", error=str(exc))
-        raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="ai_check_copyright",
+            entity_id=check_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+        raise
 
 
 @app.task(
@@ -290,6 +309,15 @@ def ai_check_factual(
         asyncio.run(_persist_and_maybe_finalize(check_id, "factual_risk", raw_flags))
         log_.info("ai_check_factual.done", flag_count=len(raw_flags))
         return {"check_id": check_id, "category": "factual_risk", "flags": len(raw_flags)}
-    except Exception as exc:
-        log_.error("ai_check_factual.failed", error=str(exc))
-        raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="ai_check_factual",
+            entity_id=check_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
+        raise

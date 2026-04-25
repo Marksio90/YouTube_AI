@@ -17,6 +17,11 @@ from worker.celery_app import app
 from worker.config import settings
 from worker.db import get_db_session
 from worker.idempotency import guard as idp
+from worker.tasks.error_handling import (
+    TASK_FAILURE_EXCEPTIONS,
+    is_retryable_error,
+    log_task_failure,
+)
 from worker import registry
 
 log = structlog.get_logger(__name__)
@@ -46,10 +51,19 @@ def upload_video(self, *, publication_id: str) -> dict[str, Any]:
     try:
         with idp.lock(idp_key, task_id=task_id):
             return asyncio.run(_run_upload(self, task_id, publication_id, idp_key))
-    except Exception as exc:
-        log_.error("upload_video.failed", error=str(exc))
-        asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
-        raise self.retry(exc=exc, countdown=120 * (self.request.retries + 1))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="upload_video",
+            entity_id=publication_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            asyncio.run(_fail_registry(task_id, str(exc), self.request.retries))
+            raise self.retry(exc=exc, countdown=120 * (self.request.retries + 1))
+        raise
 
 
 async def _run_upload(task, task_id, publication_id, idp_key) -> dict:
@@ -180,9 +194,18 @@ def sync_channel_metrics(self, *, channel_id: str) -> dict[str, Any]:
 
     try:
         return asyncio.run(_run_sync_metrics(self, task_id, channel_id))
-    except Exception as exc:
-        log_.error("sync_channel_metrics.failed", error=str(exc))
-        raise self.retry(exc=exc)
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="sync_channel_metrics",
+            entity_id=channel_id,
+            exc=exc,
+            retryable=retryable,
+        )
+        if retryable:
+            raise self.retry(exc=exc)
+        raise
 
 
 async def _run_sync_metrics(task, task_id, channel_id) -> dict:
@@ -275,7 +298,7 @@ async def _fail_registry(task_id: str, error: str, retry_count: int) -> None:
     try:
         async with get_db_session() as db:
             await registry.record_retry(db, task_id=task_id, retry_count=retry_count, error=error)
-    except Exception:
+    except (OSError, RuntimeError, ValueError):
         pass
 
 
@@ -327,10 +350,19 @@ def publish_video_pipeline(
                     visibility=visibility or "private",
                 )
             )
-    except Exception as exc:
-        log_.error("publish_pipeline.failed", error=str(exc))
+    except TASK_FAILURE_EXCEPTIONS as exc:
+        retryable = is_retryable_error(exc)
+        log_task_failure(
+            log_,
+            task_name="publish_video_pipeline",
+            entity_id=publication_id,
+            exc=exc,
+            retryable=retryable,
+        )
         asyncio.run(_mark_publication_failed(publication_id, str(exc)))
-        raise self.retry(exc=exc, countdown=120 * (self.request.retries + 1))
+        if retryable:
+            raise self.retry(exc=exc, countdown=120 * (self.request.retries + 1))
+        raise
 
 
 async def _run_publish_pipeline(
@@ -436,7 +468,7 @@ async def _refresh_access_token_if_needed(pub: dict) -> str:
 
     try:
         expiry = datetime.fromisoformat(pub["token_expiry"])
-    except Exception:
+    except (RuntimeError, OSError):
         return access_token
 
     if expiry > datetime.now(timezone.utc):

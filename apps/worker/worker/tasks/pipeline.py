@@ -56,8 +56,15 @@ def run_pipeline(self, *, run_id: str) -> dict[str, Any]:
     try:
         with idp.lock(idp_key, task_id=task_id):
             return asyncio.run(_run_pipeline(self, task_id, run_id, idp_key))
-    except Exception as exc:
-        log_.error("run_pipeline.failed", error=str(exc))
+    except (RuntimeError, ValueError, LookupError, OSError) as exc:
+        log_.error(
+            "run_pipeline.failed",
+            task_name="run_pipeline",
+            entity_id=run_id,
+            error_type=type(exc).__name__,
+            retryable=False,
+            error=str(exc),
+        )
         return {"status": "failed", "error": str(exc)}
 
 
@@ -118,8 +125,17 @@ async def _run_pipeline(task, task_id, run_id, idp_key) -> dict:
             context.update(output or {})
             step_result["status"] = "completed"
             step_result["output"] = output
-        except Exception as exc:
-            log.error("pipeline_step.failed", run_id=run_id, step_id=step_id, error=str(exc))
+        except (RuntimeError, ValueError, LookupError, OSError) as exc:
+            log.error(
+                "pipeline_step.failed",
+                task_name="run_pipeline",
+                entity_id=run_id,
+                error_type=type(exc).__name__,
+                retryable=False,
+                run_id=run_id,
+                step_id=step_id,
+                error=str(exc),
+            )
             step_result["status"] = "failed"
             step_result["error"] = str(exc)
             step_results.append(step_result)
