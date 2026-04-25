@@ -16,6 +16,7 @@ from app.api.v1.endpoints.optimization import router as optimization_router
 from app.api.v1.endpoints.thumbnails import router as thumbnails_router
 from app.api.v1.endpoints.youtube import router as youtube_router
 from app.api.v1.endpoints.affiliate import router as affiliate_router
+from app.api.v1.endpoints.products import router as products_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -35,3 +36,4 @@ api_router.include_router(thumbnails_router)
 api_router.include_router(optimization_router)
 api_router.include_router(youtube_router)
 api_router.include_router(affiliate_router)
+api_router.include_router(products_router)
