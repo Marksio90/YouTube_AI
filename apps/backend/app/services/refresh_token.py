@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import Request
-from sqlalchemy import update
+from sqlalchemy import text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.refresh_token_session import RefreshTokenSession
@@ -46,13 +46,22 @@ class RefreshTokenService:
             return False
         return True
 
-    async def revoke_and_rotate(self, *, old_jti: str, new_jti: str) -> bool:
-        session = await self.db.get(RefreshTokenSession, old_jti)
-        if not session or session.revoked_at is not None:
-            return False
-        session.revoked_at = datetime.now(UTC)
-        session.replaced_by_jti = new_jti
-        return True
+    async def atomic_revoke(
+        self, *, jti: str, new_jti: str, device_fingerprint: str | None
+    ) -> bool:
+        result = await self.db.execute(
+            text("""
+                UPDATE refresh_token_sessions
+                SET revoked_at = NOW(), replaced_by_jti = :new_jti
+                WHERE jti = :jti
+                  AND revoked_at IS NULL
+                  AND expires_at > NOW()
+                  AND (device_fingerprint IS NULL OR device_fingerprint = :fingerprint)
+                RETURNING jti
+            """),
+            {"jti": jti, "new_jti": new_jti, "fingerprint": device_fingerprint},
+        )
+        return result.fetchone() is not None
 
 
     async def revoke_all_for_user(self, user_id: uuid.UUID) -> None:

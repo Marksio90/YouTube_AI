@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from app.api.v1.deps import DB, CurrentUser
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.core.security import (
     TokenValidationError,
     create_access_token,
@@ -42,7 +43,8 @@ def _clear_auth_cookies(response: Response) -> None:
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def register(payload: UserCreate, db: DB) -> UserRead:
+@limiter.limit("5/minute")
+async def register(request: Request, payload: UserCreate, db: DB) -> UserRead:
     svc = UserService(db)
     if await svc.get_by_email(payload.email):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
@@ -51,7 +53,8 @@ async def register(payload: UserCreate, db: DB) -> UserRead:
 
 
 @router.post("/login", response_model=TokenPair)
-async def login(payload: UserLogin, request: Request, response: Response, db: DB) -> TokenPair:
+@limiter.limit("10/minute")
+async def login(request: Request, payload: UserLogin, response: Response, db: DB) -> TokenPair:
     svc = UserService(db)
     user = await svc.authenticate(payload.email, payload.password)
     if not user:
@@ -87,23 +90,21 @@ async def refresh(request: Request, response: Response, db: DB, payload: TokenRe
     except TokenValidationError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
-    refresh_svc = RefreshTokenService(db)
     old_jti = data.get("jti")
     if not old_jti:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
-
-    device_fingerprint = build_device_fingerprint(request)
-    is_active = await refresh_svc.validate_active(jti=old_jti, device_fingerprint=device_fingerprint)
-    if not is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
 
     user = await UserService(db).get_by_id(data["sub"])
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
     new_refresh_token, new_jti, new_exp = create_refresh_token(str(user.id), str(user.organization_id))
-    rotated = await refresh_svc.revoke_and_rotate(old_jti=old_jti, new_jti=new_jti)
-    if not rotated:
+    device_fingerprint = build_device_fingerprint(request)
+    refresh_svc = RefreshTokenService(db)
+    revoked = await refresh_svc.atomic_revoke(
+        jti=old_jti, new_jti=new_jti, device_fingerprint=device_fingerprint
+    )
+    if not revoked:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token revoked")
 
     await refresh_svc.register(

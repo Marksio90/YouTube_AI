@@ -46,6 +46,10 @@ async def publication_analytics(
     date_from: date = Query(...),
     date_to: date = Query(...),
 ) -> list[AnalyticsSnapshotRead]:
+    from app.repositories.publication import PublicationRepository
+    pub = await PublicationRepository(db).get_for_user(publication_id, owner_id=current_user.id)
+    if not pub:
+        raise NotFoundError("Publication not found")
     svc = AnalyticsService(db)
     return await svc.get_publication_snapshots(
         publication_id, date_from=date_from, date_to=date_to
@@ -127,6 +131,11 @@ async def sync_publication_analytics(
         description="Date to sync (default: yesterday)",
     ),
 ) -> TaskResponse:
+    from app.repositories.publication import PublicationRepository
+    pub = await PublicationRepository(db).get_for_user(publication_id, owner_id=current_user.id)
+    if not pub:
+        raise NotFoundError("Publication not found")
+
     import datetime as dt
     d = sync_date.isoformat() if sync_date else (dt.date.today() - dt.timedelta(days=1)).isoformat()
 
@@ -173,7 +182,7 @@ async def publication_score(
     from app.repositories.publication import PublicationRepository
 
     pub_repo = PublicationRepository(db)
-    pub = await pub_repo.get(publication_id)
+    pub = await pub_repo.get_for_user(publication_id, owner_id=current_user.id)
     if not pub:
         raise NotFoundError("Publication not found")
 
