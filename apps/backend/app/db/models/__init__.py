@@ -1,8 +1,10 @@
 from app.db.models.analytics import AnalyticsSnapshot
+from app.db.models.audio_job import AudioJob
 from app.db.models.compliance import ComplianceCheck, RiskFlag
 from app.db.models.brief import Brief
 from app.db.models.channel import Channel
 from app.db.models.monetization import AffiliateLink, RevenueStream
+from app.db.models.organization import Organization
 from app.db.models.performance import PerformanceScore, Recommendation
 from app.db.models.pipeline import Pipeline, PipelineRun, PipelineStepResult
 from app.db.models.publication import Publication
@@ -12,6 +14,7 @@ from app.db.models.user import User
 from app.db.models.workflow import WorkflowAuditEvent, WorkflowJob, WorkflowRun
 
 __all__ = [
+    "Organization",
     "User",
     "Channel",
     "Topic",
@@ -31,4 +34,5 @@ __all__ = [
     "WorkflowRun",
     "WorkflowJob",
     "WorkflowAuditEvent",
+    "AudioJob",
 ]

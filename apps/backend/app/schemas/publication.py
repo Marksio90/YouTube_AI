@@ -60,3 +60,13 @@ class PublicationMetrics(BaseModel):
     watch_time_hours: float = 0.0
     avg_view_duration_seconds: float = 0.0
     ctr: float = 0.0
+
+
+class PublishPipelineRequest(BaseModel):
+    media_url: str
+    audio_url: str | None = None
+    thumbnail_url: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=5000)
+    tags: list[str] | None = None
+    visibility: str | None = None

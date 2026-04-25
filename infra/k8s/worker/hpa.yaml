@@ -13,32 +13,43 @@ spec:
     kind: Deployment
     name: worker
   minReplicas: 2
-  maxReplicas: 8
+  maxReplicas: 30
   metrics:
+    # CPU keeps worker responsive for heavy tasks.
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          # Workers are CPU-heavy (LLM calls, media processing)
-          averageUtilization: 80
-    - type: Resource
-      resource:
-        name: memory
+          averageUtilization: 75
+
+    # Queue-pressure scaling from Prometheus adapter external metric.
+    - type: External
+      external:
+        metric:
+          name: celery_queue_messages
         target:
-          type: Utilization
-          averageUtilization: 85
+          type: AverageValue
+          averageValue: "30"
+
   behavior:
     scaleUp:
-      stabilizationWindowSeconds: 30
+      stabilizationWindowSeconds: 15
+      selectPolicy: Max
       policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+        - type: Pods
+          value: 8
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 600
+      selectPolicy: Min
+      policies:
+        - type: Percent
+          value: 15
+          periodSeconds: 60
         - type: Pods
           value: 2
           periodSeconds: 60
-    scaleDown:
-      # Conservative scale-down — active tasks must drain first
-      stabilizationWindowSeconds: 600
-      policies:
-        - type: Pods
-          value: 1
-          periodSeconds: 180

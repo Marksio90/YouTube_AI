@@ -208,7 +208,7 @@ class PublishJob(BaseWorkflowJob):
     """Upload the video to YouTube and create the Publication record."""
 
     step_type        = "publication"
-    celery_task_name = "worker.tasks.youtube.upload_video"
+    celery_task_name = "worker.tasks.youtube.publish_video_pipeline"
     celery_queue     = "default"
 
     def build_payload(self, ctx: WorkflowContext, step_config: dict) -> dict:
@@ -217,12 +217,12 @@ class PublishJob(BaseWorkflowJob):
             raise ContextKeyMissingError("publication_id", self.step_type)
         payload: dict = {
             "publication_id": pub_id,
-            "privacy_status": step_config.get("privacy_status", "private"),
+            "media_url": step_config.get("media_url") or ctx.get("media_url") or ctx.require("audio_url", self.step_type),
+            "visibility": step_config.get("privacy_status", "private"),
         }
-        # Pass through enrichment data if available
-        for k in ("audio_url", "thumbnail_url"):
+        for k in ("audio_url", "thumbnail_url", "optimized_title", "optimized_description", "tags"):
             if ctx.get(k):
-                payload[k] = ctx.get(k)
+                payload[k.replace("optimized_", "")] = ctx.get(k)
         return payload
 
     def extract_output(self, result: dict) -> dict:

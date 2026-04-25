@@ -7,7 +7,7 @@ from app.db.models.publication import Publication
 from app.repositories.channel import ChannelRepository
 from app.repositories.publication import PublicationRepository
 from app.schemas.common import PaginatedResponse, TaskResponse
-from app.schemas.publication import PublicationCreate, PublicationUpdate
+from app.schemas.publication import PublicationCreate, PublicationUpdate, PublishPipelineRequest
 
 
 class PublicationService:
@@ -73,6 +73,29 @@ class PublicationService:
         from app.tasks.youtube import enqueue_upload
         pub = await self.get_for_user(publication_id, owner_id=owner_id)
         task_id = enqueue_upload(publication_id=str(pub.id))
+        return TaskResponse(task_id=task_id, status="pending")
+
+
+    async def enqueue_publish_pipeline(
+        self,
+        publication_id: uuid.UUID,
+        payload: PublishPipelineRequest,
+        *,
+        owner_id: uuid.UUID,
+    ) -> TaskResponse:
+        from app.tasks.youtube import enqueue_publish_pipeline
+
+        pub = await self.get_for_user(publication_id, owner_id=owner_id)
+        task_id = enqueue_publish_pipeline(
+            publication_id=str(pub.id),
+            media_url=payload.media_url,
+            audio_url=payload.audio_url,
+            thumbnail_url=payload.thumbnail_url or pub.thumbnail_url,
+            title=payload.title or pub.title,
+            description=payload.description if payload.description is not None else pub.description,
+            tags=payload.tags or pub.tags,
+            visibility=payload.visibility or str(pub.visibility),
+        )
         return TaskResponse(task_id=task_id, status="pending")
 
     async def status_summary(self, owner_id: uuid.UUID) -> dict[str, int]:
