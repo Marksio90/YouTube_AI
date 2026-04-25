@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: ai-media-os
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: ai-media-os
+    app.kubernetes.io/component: monitoring
+
+data:
+  ai-media-os-overview.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "panels": [
+        {
+          "id": 1,
+          "title": "API Request Rate",
+          "type": "timeseries",
+          "targets": [{"expr": "sum(rate(api_requests_total[5m]))", "refId": "A"}],
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+        },
+        {
+          "id": 2,
+          "title": "API p95 Latency",
+          "type": "timeseries",
+          "targets": [{"expr": "histogram_quantile(0.95, sum(rate(api_request_latency_seconds_bucket[5m])) by (le))", "refId": "A"}],
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+        },
+        {
+          "id": 3,
+          "title": "Worker Job Success/Failure",
+          "type": "timeseries",
+          "targets": [
+            {"expr": "sum(rate(worker_jobs_total{status=\"success\"}[5m]))", "refId": "A", "legendFormat": "success"},
+            {"expr": "sum(rate(worker_jobs_total{status=\"failure\"}[5m]))", "refId": "B", "legendFormat": "failure"}
+          ],
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+        },
+        {
+          "id": 4,
+          "title": "Queue Size by Queue",
+          "type": "timeseries",
+          "targets": [{"expr": "sum(celery_queue_size) by (queue)", "refId": "A"}],
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+        },
+        {
+          "id": 5,
+          "title": "DB Health",
+          "type": "stat",
+          "targets": [{"expr": "min(db_health_status)", "refId": "A"}],
+          "gridPos": {"h": 8, "w": 6, "x": 0, "y": 16}
+        },
+        {
+          "id": 6,
+          "title": "Memory Usage",
+          "type": "timeseries",
+          "targets": [
+            {"expr": "sum(process_resident_memory_bytes{job=\"backend-api\"})", "refId": "A", "legendFormat": "backend"},
+            {"expr": "sum(process_resident_memory_bytes{job=\"worker-metrics\"})", "refId": "B", "legendFormat": "worker"}
+          ],
+          "gridPos": {"h": 8, "w": 18, "x": 6, "y": 16}
+        }
+      ],
+      "schemaVersion": 39,
+      "style": "dark",
+      "tags": ["ai-media-os", "production"],
+      "templating": {"list": []},
+      "time": {"from": "now-6h", "to": "now"},
+      "timezone": "browser",
+      "title": "AI Media OS Overview",
+      "uid": "ai-media-os-overview",
+      "version": 1
+    }
