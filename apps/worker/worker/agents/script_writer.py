@@ -1,22 +1,51 @@
-import json
-import re
+"""
+Deprecated compatibility wrapper.
 
-from worker.agents.base import BaseAgent
+Use `worker.agents.scriptwriter.ScriptwriterAgent` with `.run(...)` instead.
+"""
+from __future__ import annotations
 
-SYSTEM_PROMPT = """You are an expert YouTube script writer specializing in no-face content.
-Structure: HOOK (0-30s) → BODY (sections) → CTA. Return valid JSON only."""
+import warnings
 
-SCHEMA = '{"title":"string","hook":"string","body":"string","cta":"string","keywords":["..."],"estimated_duration_seconds":600,"seo_score":8.5}'
+from worker.agents.scriptwriter import ScriptwriterAgent, ScriptwriterInput
 
 
-class ScriptWriterAgent(BaseAgent):
-    async def generate(self, *, topic: str, tone: str, target_duration_seconds: int = 600, keywords: list[str] | None = None, channel_niche: str = "general", additional_context: str | None = None) -> dict:
-        msg = f"Topic: {topic}\nNiche: {channel_niche}\nTone: {tone}\nDuration: {target_duration_seconds}s\nKeywords: {', '.join(keywords or [])}\n{f'Context: {additional_context}' if additional_context else ''}\n\nReturn ONLY JSON: {SCHEMA}"
-        raw = await self._call(system=SYSTEM_PROMPT, messages=[{"role": "user", "content": msg}], temperature=0.8)
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            m = re.search(r"\{.*\}", raw, re.DOTALL)
-            if not m:
-                raise ValueError("Non-JSON response from ScriptWriterAgent")
-            return json.loads(m.group())
+class ScriptWriterAgent(ScriptwriterAgent):
+    def __init__(self, *args, **kwargs) -> None:
+        warnings.warn(
+            "ScriptWriterAgent is deprecated. Use ScriptwriterAgent.run(...) with ScriptwriterInput.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)
+
+    async def generate(
+        self,
+        *,
+        topic: str,
+        tone: str,
+        target_duration_seconds: int = 600,
+        keywords: list[str] | None = None,
+        channel_niche: str = "general",
+        additional_context: str | None = None,
+    ) -> dict:
+        out = await self.run(
+            ScriptwriterInput(
+                topic=topic,
+                niche=channel_niche,
+                tone=tone,
+                target_duration_seconds=target_duration_seconds,
+                keywords=keywords or [],
+                style_notes=additional_context or "",
+            )
+        )
+        body_sections = [s.content for s in out.sections if s.type not in {"hook", "cta", "outro"}]
+        cta_section = next((s.content for s in out.sections if s.type == "cta"), "")
+        return {
+            "title": out.title,
+            "hook": out.hook,
+            "body": "\n\n".join(body_sections).strip(),
+            "cta": cta_section,
+            "keywords": list(out.keyword_placement.keys()),
+            "estimated_duration_seconds": out.estimated_duration_seconds,
+        }
