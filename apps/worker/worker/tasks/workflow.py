@@ -162,7 +162,7 @@ def resume_workflow(self, *, run_id: str) -> dict[str, Any]:
             )
             await db.commit()
 
-        return asyncio.run(_run_workflow_async(run_id, self.request.id, self))
+        return await _run_workflow_async(run_id, self.request.id, self)
 
     try:
         return asyncio.run(_resume())

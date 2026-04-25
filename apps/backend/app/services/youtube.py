@@ -44,6 +44,8 @@ class YouTubeService:
             "sub": user_id,
             "org": org_id,
             "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
+            "aud": "youtube-oauth-state",
+            "iss": settings.jwt_issuer,
         }
         return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
 
