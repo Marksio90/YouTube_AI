@@ -21,7 +21,7 @@ dependencies = [
     "boto3==1.35.88",
     "structlog==24.4.0",
     "tenacity==9.1.4",
-    "python-dotenv==1.0.1",
+    "python-dotenv==1.2.2",
     "prometheus-client==0.22.0",
     "cryptography==43.0.3",
     "Pillow==11.1.0",
