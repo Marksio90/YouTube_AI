@@ -24,8 +24,11 @@ from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.monetization import (
+    AffiliateConversionIdempotency,
     AffiliateLink,
     AffiliateLinkClick,
+    AffiliateSecurityAudit,
+    AffiliateTrackingNonce,
     AffiliatePlatform,
     Campaign,
     CampaignStatus,
@@ -196,6 +199,10 @@ class AffiliateService:
         publication_id: uuid.UUID | None = None,
         campaign_id: uuid.UUID | None = None,
         is_mock: bool = False,
+        source: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        fingerprint: str | None = None,
     ) -> AffiliateLinkClick:
         link = await self.get_link(link_id)
         if not link:
@@ -207,6 +214,10 @@ class AffiliateService:
             link_id=link_id,
             publication_id=publication_id,
             campaign_id=campaign_id or link.campaign_id,
+            source=source,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            fingerprint=fingerprint,
             clicked_at=datetime.now(tz=timezone.utc),
             is_mock=is_mock,
             estimated_revenue_usd=round(estimated_rev, 6),
@@ -244,12 +255,42 @@ class AffiliateService:
         *,
         publication_id: uuid.UUID | None = None,
         revenue_usd: float | None = None,
+        idempotency_key: str | None = None,
+        source: str | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        fingerprint: str | None = None,
     ) -> AffiliateLink | None:
         link = await self.get_link(link_id)
         if not link:
             return None
 
         actual_rev = revenue_usd if revenue_usd is not None else link.commission_per_conversion_usd
+
+        if idempotency_key:
+            existing = (
+                await self._db.execute(
+                    select(AffiliateConversionIdempotency).where(
+                        AffiliateConversionIdempotency.link_id == link_id,
+                        AffiliateConversionIdempotency.idempotency_key == idempotency_key,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing:
+                return link
+
+            self._db.add(
+                AffiliateConversionIdempotency(
+                    link_id=link_id,
+                    idempotency_key=idempotency_key,
+                    publication_id=publication_id,
+                    revenue_usd=actual_rev,
+                    source=source,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    fingerprint=fingerprint,
+                )
+            )
 
         link.total_conversions += 1
         link.total_revenue_usd = float(link.total_revenue_usd) + actual_rev
@@ -274,6 +315,97 @@ class AffiliateService:
                 campaign.total_revenue_usd = float(campaign.total_revenue_usd) + actual_rev
 
         return link
+
+    async def click_rate_limit_exceeded(
+        self,
+        link_id: uuid.UUID,
+        *,
+        ip_address: str | None,
+        per_ip_limit: int,
+        per_link_limit: int,
+        window_seconds: int,
+    ) -> tuple[bool, str | None]:
+        if window_seconds <= 0:
+            return False, None
+
+        window_start = datetime.now(tz=timezone.utc) - timedelta(seconds=window_seconds)
+        link_count = (
+            await self._db.execute(
+                select(func.count(AffiliateLinkClick.id)).where(
+                    AffiliateLinkClick.link_id == link_id,
+                    AffiliateLinkClick.clicked_at >= window_start,
+                )
+            )
+        ).scalar_one()
+        if link_count >= per_link_limit:
+            return True, "link_rate_limit"
+
+        if ip_address:
+            ip_count = (
+                await self._db.execute(
+                    select(func.count(AffiliateLinkClick.id)).where(
+                        AffiliateLinkClick.link_id == link_id,
+                        AffiliateLinkClick.ip_address == ip_address,
+                        AffiliateLinkClick.clicked_at >= window_start,
+                    )
+                )
+            ).scalar_one()
+            if ip_count >= per_ip_limit:
+                return True, "ip_rate_limit"
+
+        return False, None
+
+    async def audit_security_event(
+        self,
+        *,
+        event_type: str,
+        decision: str,
+        link_id: uuid.UUID | None,
+        source: str | None,
+        ip_address: str | None,
+        user_agent: str | None,
+        fingerprint: str | None,
+        reason: str | None = None,
+    ) -> None:
+        self._db.add(
+            AffiliateSecurityAudit(
+                event_type=event_type,
+                decision=decision,
+                reason=reason,
+                link_id=link_id,
+                source=source,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                fingerprint=fingerprint,
+            )
+        )
+
+    async def register_tracking_nonce(
+        self,
+        *,
+        link_id: uuid.UUID,
+        event_type: str,
+        nonce: str,
+    ) -> bool:
+        existing = (
+            await self._db.execute(
+                select(AffiliateTrackingNonce).where(
+                    AffiliateTrackingNonce.link_id == link_id,
+                    AffiliateTrackingNonce.event_type == event_type,
+                    AffiliateTrackingNonce.nonce == nonce,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing:
+            return False
+        self._db.add(
+            AffiliateTrackingNonce(
+                link_id=link_id,
+                event_type=event_type,
+                nonce=nonce,
+            )
+        )
+        return True
 
     # ── Mock click generation ─────────────────────────────────────────────────
 
