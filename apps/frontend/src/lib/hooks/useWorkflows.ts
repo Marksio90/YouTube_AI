@@ -30,6 +30,10 @@ export function useWorkflowAudit(id: string) {
   return useQuery({
     queryKey: ["workflows", id, "audit"],
     queryFn: () => workflowsApi.audit(id),
+    select: (auditResponse) => ({
+      ...auditResponse,
+      events: auditResponse.events ?? [],
+    }),
     enabled: !!id,
   });
 }

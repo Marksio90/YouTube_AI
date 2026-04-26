@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
+from app.db.models.brief import BriefStatus
 from app.schemas.brief import BriefCreate, BriefGenerateRequest, BriefRead, BriefUpdate
 from app.schemas.common import PaginatedResponse, TaskResponse
 from app.services.brief import BriefService
@@ -16,7 +17,7 @@ async def list_briefs(
     db: DB,
     channel_id: uuid.UUID | None = None,
     topic_id: uuid.UUID | None = None,
-    status: str | None = None,
+    status: BriefStatus | None = Query(default=None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[BriefRead]:

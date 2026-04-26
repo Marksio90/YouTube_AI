@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.db.models.publication import Publication
+from app.db.models.publication import Publication, PublicationStatus
 from app.repositories.channel import ChannelRepository
 from app.repositories.publication import PublicationRepository
 from app.schemas.common import PaginatedResponse, TaskResponse
@@ -20,15 +20,13 @@ class PublicationService:
         owner_id: uuid.UUID,
         *,
         channel_id: uuid.UUID | None = None,
-        status: str | None = None,
+        status: PublicationStatus | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> PaginatedResponse:
-        from app.db.models.publication import PublicationStatus
         offset = (page - 1) * page_size
-        status_enum = PublicationStatus(status) if status else None
         rows, total = await self.repo.list_for_user(
-            owner_id, channel_id=channel_id, status=status_enum,
+            owner_id, channel_id=channel_id, status=status,
             offset=offset, limit=page_size,
         )
         return PaginatedResponse(

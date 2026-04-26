@@ -151,15 +151,15 @@ function OverviewTab({ days }: { days: number }) {
     (acc, ch) => ({
       views: acc.views + ch.total_views,
       revenue: acc.revenue + ch.total_revenue_usd,
-      watchTime: acc.watchTime + ch.avg_view_duration_seconds * ch.total_views,
-      subscribers: acc.subscribers + ch.subscribers_net,
+      watchTime: acc.watchTime + ch.total_watch_time_hours * 3600,
+      subscribers: acc.subscribers + ch.net_subscribers,
     }),
     { views: 0, revenue: 0, watchTime: 0, subscribers: 0 }
   );
 
   const byDate: Record<string, { date: string; views: number; revenue: number }> = {};
   data?.forEach((ch) =>
-    ch.snapshots?.forEach((s) => {
+    ch.daily_snapshots?.forEach((s) => {
       if (!byDate[s.snapshot_date]) {
         byDate[s.snapshot_date] = { date: s.snapshot_date, views: 0, revenue: 0 };
       }

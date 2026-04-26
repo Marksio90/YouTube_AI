@@ -35,6 +35,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.analytics import AnalyticsSnapshot
+from app.db.models.channel import Channel
 from app.db.models.monetization import (
     AffiliateLink,
     AffiliatePlatform,
@@ -177,8 +178,18 @@ class MonetizationService:
         self,
         publication_id: uuid.UUID,
         *,
-        channel_id: uuid.UUID,
-    ) -> PublicationRevenueOverview:
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None,
+    ) -> PublicationRevenueOverview | None:
+        publication = await self._get_owned_publication(
+            publication_id,
+            owner_id=owner_id,
+            organization_id=organization_id,
+        )
+        if not publication:
+            return None
+
+        channel_id = publication.channel_id
         streams = await self.list_streams(channel_id, publication_id=publication_id)
 
         if not streams:
@@ -292,43 +303,97 @@ class MonetizationService:
         return link
 
     async def update_affiliate_link(
-        self, link_id: uuid.UUID, payload: AffiliateLinkUpdate
+        self,
+        link_id: uuid.UUID,
+        payload: AffiliateLinkUpdate,
+        *,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None,
     ) -> AffiliateLink | None:
-        link = (
-            await self._db.execute(
-                select(AffiliateLink).where(AffiliateLink.id == link_id)
-            )
-        ).scalar_one_or_none()
+        link = await self._get_owned_affiliate_link(
+            link_id,
+            owner_id=owner_id,
+            organization_id=organization_id,
+        )
         if not link:
             return None
         for k, v in payload.model_dump(exclude_none=True).items():
             setattr(link, k, v)
         return link
 
-    async def record_click(self, link_id: uuid.UUID) -> AffiliateLink | None:
+    async def record_click(
+        self,
+        link_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None,
+    ) -> AffiliateLink | None:
         """Increment click counter. Called by short-link redirect handler."""
-        link = (
-            await self._db.execute(
-                select(AffiliateLink).where(AffiliateLink.id == link_id)
-            )
-        ).scalar_one_or_none()
+        link = await self._get_owned_affiliate_link(
+            link_id,
+            owner_id=owner_id,
+            organization_id=organization_id,
+        )
         if link:
             link.total_clicks += 1
         return link
 
     async def record_conversion(
-        self, link_id: uuid.UUID, revenue_usd: float
+        self,
+        link_id: uuid.UUID,
+        revenue_usd: float,
+        *,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None,
     ) -> AffiliateLink | None:
         """Increment conversion counter + cumulative revenue."""
-        link = (
-            await self._db.execute(
-                select(AffiliateLink).where(AffiliateLink.id == link_id)
-            )
-        ).scalar_one_or_none()
+        link = await self._get_owned_affiliate_link(
+            link_id,
+            owner_id=owner_id,
+            organization_id=organization_id,
+        )
         if link:
             link.total_conversions += 1
             link.total_revenue_usd = float(link.total_revenue_usd) + revenue_usd
         return link
+
+    async def _get_owned_publication(
+        self,
+        publication_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None,
+    ) -> Publication | None:
+        q = (
+            select(Publication)
+            .join(Channel, Publication.channel_id == Channel.id)
+            .where(
+                Publication.id == publication_id,
+                Channel.owner_id == owner_id,
+            )
+        )
+        if organization_id is not None:
+            q = q.where(Channel.organization_id == organization_id)
+        return (await self._db.execute(q)).scalar_one_or_none()
+
+    async def _get_owned_affiliate_link(
+        self,
+        link_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None,
+    ) -> AffiliateLink | None:
+        q = (
+            select(AffiliateLink)
+            .join(Channel, AffiliateLink.channel_id == Channel.id)
+            .where(
+                AffiliateLink.id == link_id,
+                Channel.owner_id == owner_id,
+            )
+        )
+        if organization_id is not None:
+            q = q.where(Channel.organization_id == organization_id)
+        return (await self._db.execute(q)).scalar_one_or_none()
 
     # ── Mock generation ───────────────────────────────────────────────────────
 

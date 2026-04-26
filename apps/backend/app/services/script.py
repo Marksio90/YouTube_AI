@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.db.models.script import Script
+from app.db.models.script import Script, ScriptStatus
 from app.repositories.channel import ChannelRepository
 from app.repositories.script import ScriptRepository
 from app.schemas.common import PaginatedResponse, TaskResponse
@@ -26,18 +26,16 @@ class ScriptService:
         *,
         channel_id: uuid.UUID | None = None,
         brief_id: uuid.UUID | None = None,
-        status: str | None = None,
+        status: ScriptStatus | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> PaginatedResponse:
-        from app.db.models.script import ScriptStatus
         offset = (page - 1) * page_size
-        status_enum = ScriptStatus(status) if status else None
         rows, total = await self.repo.list_for_user(
             owner_id,
             channel_id=channel_id,
             brief_id=brief_id,
-            status=status_enum,
+            status=status,
             offset=offset,
             limit=page_size,
         )

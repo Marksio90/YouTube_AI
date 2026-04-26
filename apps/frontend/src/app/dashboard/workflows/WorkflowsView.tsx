@@ -11,23 +11,9 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Play, GitBranch, ChevronRight } from "lucide-react";
 import { formatRelative } from "@/lib/utils/format";
-import type { WorkflowRun } from "@/lib/types";
+import type { WorkflowRunSummary } from "@/lib/types";
 
-function JobProgress({ jobs }: { jobs?: WorkflowRun["jobs"] }) {
-  if (!jobs?.length) return null;
-  const done = jobs.filter((j) => j.status === "completed" || j.status === "skipped").length;
-  const pct = Math.round((done / jobs.length) * 100);
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-1 rounded-full bg-gray-800 overflow-hidden w-20">
-        <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs tabular-nums text-gray-500">{done}/{jobs.length}</span>
-    </div>
-  );
-}
-
-const COLUMNS: Column<WorkflowRun>[] = [
+const COLUMNS: Column<WorkflowRunSummary>[] = [
   {
     key: "pipeline",
     header: "Pipeline",
@@ -41,7 +27,7 @@ const COLUMNS: Column<WorkflowRun>[] = [
   {
     key: "progress",
     header: "Progress",
-    render: (r) => <JobProgress jobs={r.jobs} />,
+    render: () => <span className="text-xs text-gray-600">—</span>,
   },
   {
     key: "triggered_by",
