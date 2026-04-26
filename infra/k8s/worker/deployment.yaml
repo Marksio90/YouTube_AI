@@ -71,8 +71,8 @@ spec:
               drop: ["ALL"]
       containers:
         - name: worker
-          image: your-registry.io/ai-media-os/worker:latest
-          imagePullPolicy: Always
+          image: your-registry.io/ai-media-os/worker:${IMAGE_TAG}
+          imagePullPolicy: IfNotPresent
           ports:
             - name: metrics
               containerPort: 9108
