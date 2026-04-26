@@ -35,8 +35,5 @@ async def auth_middleware(request: Request, call_next) -> Response:  # type: ign
     except TokenValidationError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
 
-    if token_data.get("type") != "access":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
-
     request.state.token_data = token_data
     return await call_next(request)
