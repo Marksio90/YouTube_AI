@@ -23,7 +23,7 @@ app.conf.update(
     task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,
     task_track_started=True,
-    result_expires=86_400 * 7,  # 7 days
+    result_expires=86_400,  # 1 day
 
     # Timezone
     timezone="UTC",
