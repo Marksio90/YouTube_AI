@@ -343,7 +343,7 @@ class WorkflowEngine:
         async_result = celery_app.send_task(task_name, kwargs=payload, queue=queue)
         await self._set_celery_task_id(job_id, async_result.id)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         try:
             result = await asyncio.wait_for(
                 loop.run_in_executor(None, lambda: async_result.get(timeout=timeout_seconds)),

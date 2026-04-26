@@ -18,7 +18,7 @@ depends_on = None
 
 def upgrade() -> None:
     # ── Enums ─────────────────────────────────────────────────────────────────
-    op.execute("CREATE TYPE user_role AS ENUM ('owner', 'admin', 'editor', 'viewer')")
+    op.execute("CREATE TYPE user_role AS ENUM ('admin', 'user')")
     op.execute("CREATE TYPE channel_status AS ENUM ('active', 'inactive', 'suspended', 'pending_auth')")
     op.execute("CREATE TYPE topic_source AS ENUM ('manual', 'trending', 'competitor', 'ai_suggested')")
     op.execute("CREATE TYPE topic_status AS ENUM ('new', 'researching', 'briefed', 'rejected', 'archived')")
@@ -45,7 +45,7 @@ def upgrade() -> None:
         sa.Column("email", sa.String(255), nullable=False, unique=True),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("hashed_password", sa.Text, nullable=False),
-        sa.Column("role", sa.Enum("owner", "admin", "editor", "viewer", name="user_role", create_type=False), nullable=False),
+        sa.Column("role", sa.Enum("admin", "user", name="user_role", create_type=False), nullable=False),
         sa.Column("avatar_url", sa.Text, nullable=True),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default="true"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
@@ -426,4 +426,4 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS topic_status")
     op.execute("DROP TYPE IF EXISTS topic_source")
     op.execute("DROP TYPE IF EXISTS channel_status")
-    op.execute("DROP TYPE IF EXISTS user_role")
+    op.execute("DROP TYPE IF EXISTS user_role CASCADE")

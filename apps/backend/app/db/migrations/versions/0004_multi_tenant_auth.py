@@ -45,12 +45,27 @@ def upgrade() -> None:
         """
     )
 
+    # Organizations were INSERTed with id = users.id, so join directly on id.
     op.execute(
         """
         UPDATE users u
         SET organization_id = o.id
         FROM organizations o
-        WHERE o.slug LIKE regexp_replace(lower(COALESCE(split_part(u.email, '@', 1), 'org') || '-' || substr(u.id::text, 1, 8)), '[^a-z0-9-]', '-', 'g')
+        WHERE o.id = u.id
+        """
+    )
+
+    # Validate every user received an organization before making the column NOT NULL.
+    op.execute(
+        """
+        DO $$
+        DECLARE missing_count INTEGER;
+        BEGIN
+            SELECT COUNT(*) INTO missing_count FROM users WHERE organization_id IS NULL;
+            IF missing_count > 0 THEN
+                RAISE EXCEPTION 'Backfill incomplete: % user(s) without organization_id', missing_count;
+            END IF;
+        END $$;
         """
     )
 

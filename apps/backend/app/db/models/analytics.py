@@ -1,6 +1,7 @@
 import enum
 import uuid
 from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, Enum, Float, ForeignKey, Integer, Numeric, UniqueConstraint
@@ -68,7 +69,7 @@ class AnalyticsSnapshot(Base, UUIDMixin, TimestampMixin):
     subscribers_lost: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Revenue
-    revenue_usd: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False, default=0.0)
+    revenue_usd: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False, default=Decimal("0"))
     rpm: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     cpm: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
