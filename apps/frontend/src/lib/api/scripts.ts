@@ -1,4 +1,5 @@
 import type { PaginatedResponse, Script } from "@/lib/types";
+import type { components } from "@/lib/contracts/openapi";
 import { apiClient } from "./client";
 
 export const scriptsApi = {
@@ -12,14 +13,8 @@ export const scriptsApi = {
   get: (id: string) =>
     apiClient.get<Script>(`/scripts/${id}`),
 
-  generate: (data: {
-    channel_id: string;
-    topic: string;
-    tone: string;
-    target_duration_seconds?: number;
-    keywords?: string[];
-    additional_context?: string;
-  }) => apiClient.post<{ task_id: string; status: string }>("/scripts/generate", data),
+  generate: (data: components["schemas"]["ScriptGenerateRequest"]) =>
+    apiClient.post<components["schemas"]["TaskResponse"]>("/scripts/generate", data),
 
   update: (id: string, data: Partial<Pick<Script, "title" | "hook" | "body" | "cta" | "keywords" | "status">>) =>
     apiClient.patch<Script>(`/scripts/${id}`, data),

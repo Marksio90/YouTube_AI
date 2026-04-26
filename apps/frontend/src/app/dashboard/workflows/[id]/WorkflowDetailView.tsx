@@ -59,17 +59,20 @@ export function WorkflowDetailView({ id }: { id: string }) {
   const isFailed   = run.status === "failed";
   const isTerminal = run.status === "completed" || run.status === "cancelled";
 
-  const steps: TimelineStep[] = run.jobs.map((job) => ({
-    id:          job.id,
-    label:       job.step_id,
-    type:        job.step_type,
-    status:      job.status,
-    attempt:     job.attempt,
-    maxAttempts: job.max_attempts,
-    durationMs:  job.duration_ms,
-    error:       job.attempt_history.at(-1)?.error ?? null,
-    startedAt:   job.started_at,
-  }));
+  const steps: TimelineStep[] = (run.jobs ?? []).map((job) => {
+    const lastAttempt = job.attempt_history.at(-1) as Record<string, unknown> | undefined;
+    return {
+      id:          job.id,
+      label:       job.step_id,
+      type:        job.step_type,
+      status:      job.status,
+      attempt:     job.attempt,
+      maxAttempts: job.max_attempts,
+      durationMs:  job.duration_ms,
+      error:       typeof lastAttempt?.error === "string" ? lastAttempt.error : null,
+      startedAt:   job.started_at,
+    };
+  });
 
   return (
     <div className="space-y-6">

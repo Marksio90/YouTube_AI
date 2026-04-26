@@ -1,4 +1,4 @@
-import type { WorkflowRun, WorkflowJob, PaginatedResponse } from "@/lib/types";
+import type { WorkflowRun, WorkflowJob, WorkflowListResponse } from "@/lib/types";
 import type {
   TriggerWorkflowRequest,
   WorkflowActionResponse,
@@ -12,7 +12,7 @@ export const workflowsApi = {
     const qs = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
     if (status) qs.set("status", status);
     if (channelId) qs.set("channel_id", channelId);
-    return apiClient.get<PaginatedResponse<WorkflowRun>>(`/workflows?${qs}`);
+    return apiClient.get<WorkflowListResponse>(`/workflows?${qs}`);
   },
 
   get: (id: string) => apiClient.get<WorkflowRun>(`/workflows/${id}`),
@@ -30,11 +30,11 @@ export const workflowsApi = {
   jobs: (id: string) => apiClient.get<WorkflowJob[]>(`/workflows/${id}/jobs`),
 
   skipJob:   (runId: string, stepId: string) =>
-    apiClient.post<void>(`/workflows/${runId}/jobs/${stepId}/skip`, {}),
+    apiClient.post<WorkflowJob>(`/workflows/${runId}/jobs/${stepId}/skip`, {}),
 
   retryJob:  (runId: string, stepId: string) =>
     apiClient.post<WorkflowActionResponse>(`/workflows/${runId}/jobs/${stepId}/retry`, {}),
 
-  injectResult: (runId: string, stepId: string, result: Record<string, unknown>, actor: string) =>
-    apiClient.post<void>(`/workflows/${runId}/jobs/${stepId}/inject`, { result, actor }),
+  injectResult: (runId: string, stepId: string, output: Record<string, unknown>) =>
+    apiClient.post<WorkflowJob>(`/workflows/${runId}/jobs/${stepId}/inject`, { output }),
 };
