@@ -126,7 +126,10 @@ services:
     environment:
       <<: *backend-env
     depends_on:
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - media_os_net
 
