@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
+from app.db.models.topic import TopicStatus
 from app.schemas.common import MessageResponse, PaginatedResponse
 from app.schemas.topic import TopicCreate, TopicRead, TopicStatusCount, TopicUpdate
 from app.services.topic import TopicService
@@ -15,7 +16,7 @@ async def list_topics(
     current_user: CurrentUser,
     db: DB,
     channel_id: uuid.UUID | None = None,
-    status: str | None = None,
+    status: TopicStatus | None = Query(default=None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[TopicRead]:

@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
+from app.db.models.script import ScriptStatus
 from app.schemas.common import PaginatedResponse, TaskResponse
 from app.schemas.script import (
     ScriptAudioGenerateRequest,
@@ -22,7 +23,7 @@ async def list_scripts(
     db: DB,
     channel_id: uuid.UUID | None = None,
     brief_id: uuid.UUID | None = None,
-    status: str | None = None,
+    status: ScriptStatus | None = Query(default=None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[ScriptRead]:
