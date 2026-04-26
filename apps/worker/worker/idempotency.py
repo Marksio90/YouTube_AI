@@ -29,6 +29,15 @@ _RESULT_PREFIX = "idp:result:"
 _LOCK_PREFIX = "idp:lock:"
 _LOCK_TTL = 300  # 5 min — max time a lock is held before auto-release
 
+# Atomically delete the lock only if the caller still owns it.
+_RELEASE_SCRIPT = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("DEL", KEYS[1])
+else
+    return 0
+end
+"""
+
 
 class IdempotencyError(RuntimeError):
     """Raised when a lock cannot be acquired (duplicate in-flight task)."""
@@ -59,8 +68,8 @@ class IdempotencyGuard:
             get_redis().set(f"{_LOCK_PREFIX}{key}", task_id, nx=True, ex=_LOCK_TTL)
         )
 
-    def release_lock(self, key: str) -> None:
-        get_redis().delete(f"{_LOCK_PREFIX}{key}")
+    def release_lock(self, key: str, task_id: str) -> None:
+        get_redis().eval(_RELEASE_SCRIPT, 1, f"{_LOCK_PREFIX}{key}", task_id)
 
     @contextmanager
     def lock(self, key: str, *, task_id: str):
@@ -74,10 +83,10 @@ class IdempotencyGuard:
         try:
             yield
         except Exception:
-            self.release_lock(key)
+            self.release_lock(key, task_id)
             raise
         else:
-            self.release_lock(key)
+            self.release_lock(key, task_id)
 
 
 guard = IdempotencyGuard()

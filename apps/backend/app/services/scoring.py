@@ -598,6 +598,11 @@ class ScoringService:
         status: str = "pending",
         limit: int = 50,
     ) -> list[Recommendation]:
+        from sqlalchemy import case
+        priority_order = case(
+            {"critical": 1, "high": 2, "medium": 3, "low": 4},
+            value=Recommendation.priority,
+        )
         result = await self.db.execute(
             select(Recommendation)
             .where(
@@ -605,7 +610,7 @@ class ScoringService:
                 Recommendation.status == status,
             )
             .order_by(
-                Recommendation.priority.asc(),
+                priority_order.asc(),
                 Recommendation.created_at.desc(),
             )
             .limit(limit)
