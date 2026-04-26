@@ -1,13 +1,21 @@
-let hasClientSession = false;
+let _sessionActive = false;
+
+function _canUseStorage(): boolean {
+  return typeof sessionStorage !== "undefined";
+}
 
 export function loadSession() {
-  return { hasSession: hasClientSession };
+  return {
+    hasSession: _sessionActive || (_canUseStorage() && sessionStorage.getItem("_sa") === "1"),
+  };
 }
 
 export function saveSession() {
-  hasClientSession = true;
+  _sessionActive = true;
+  if (_canUseStorage()) sessionStorage.setItem("_sa", "1");
 }
 
 export function clearSession() {
-  hasClientSession = false;
+  _sessionActive = false;
+  if (_canUseStorage()) sessionStorage.removeItem("_sa");
 }
