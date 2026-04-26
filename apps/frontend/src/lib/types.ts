@@ -1,3 +1,5 @@
+import type { components } from "@/lib/contracts/openapi";
+
 // ── Shared API response shapes ────────────────────────────────────────────────
 
 export interface PaginatedResponse<T> {
@@ -66,26 +68,7 @@ export interface Brief {
 // ── Script ────────────────────────────────────────────────────────────────────
 
 export type ScriptStatus = "draft" | "review" | "approved" | "rejected" | "archived";
-
-export interface Script {
-  id: string;
-  brief_id: string | null;
-  channel_id: string;
-  title: string;
-  hook: string | null;
-  body: string | null;
-  cta: string | null;
-  keywords: string[];
-  tone: string | null;
-  seo_score: number | null;
-  compliance_score: number | null;
-  status: ScriptStatus;
-  duration_seconds: number | null;
-  audio_url: string | null;
-  version: number;
-  created_at: string;
-  updated_at: string;
-}
+export type Script = components["schemas"]["ScriptRead"];
 
 // ── Publication ───────────────────────────────────────────────────────────────
 
@@ -97,25 +80,7 @@ export type PublicationStatus =
   | "published"
   | "failed";
 
-export interface Publication {
-  id: string;
-  channel_id: string;
-  script_id: string | null;
-  title: string;
-  description: string | null;
-  tags: string[];
-  youtube_video_id: string | null;
-  thumbnail_url: string | null;
-  status: PublicationStatus;
-  view_count: number;
-  like_count: number;
-  comment_count: number;
-  revenue_usd: number;
-  scheduled_at: string | null;
-  published_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type Publication = components["schemas"]["PublicationRead"];
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
@@ -353,28 +318,7 @@ export type JobStatus =
   | "skipped"
   | "cancelled";
 
-export interface WorkflowJob {
-  id: string;
-  run_id: string;
-  step_id: string;
-  step_type: string;
-  status: JobStatus;
-  attempt: number;
-  max_attempts: number;
-  celery_task_id: string | null;
-  output: Record<string, unknown> | null;
-  error: string | null;
-  is_manual_result: boolean;
-  manual_actor: string | null;
-  attempt_history: AttemptRecord[];
-  scheduled_at: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  retry_after: string | null;
-  duration_ms: number | null;
-  created_at: string;
-  updated_at: string;
-}
+export type WorkflowJob = components["schemas"]["WorkflowJobRead"];
 
 export interface AttemptRecord {
   attempt: number;
@@ -383,30 +327,14 @@ export interface AttemptRecord {
   failed_at: string;
 }
 
-export interface WorkflowRun {
-  id: string;
-  channel_id: string | null;
-  owner_id: string;
-  pipeline_name: string;
-  pipeline_version: string;
-  status: RunStatus;
-  triggered_by: string;
-  context: Record<string, unknown>;
-  error: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  paused_at: string | null;
-  parent_run_id: string | null;
-  created_at: string;
-  updated_at: string;
-  jobs: WorkflowJob[];
-}
+export type WorkflowRun = components["schemas"]["WorkflowRunRead"];
 
-export type {
-  WorkflowActionResponse,
-  WorkflowAuditEvent,
-  WorkflowAuditResponse,
-} from "@/lib/contracts/workflows";
+export type WorkflowActionResponse = components["schemas"]["WorkflowActionResponse"];
+export type WorkflowAuditEvent = components["schemas"]["WorkflowAuditEventRead"];
+export type WorkflowAuditResponse = components["schemas"]["WorkflowAuditResponse"];
+export type WorkflowRunSummary = components["schemas"]["WorkflowRunSummary"];
+export type WorkflowListResponse = components["schemas"]["WorkflowListResponse"];
+export type TriggerWorkflowRequest = components["schemas"]["TriggerRequest"];
 
 // ── Compliance ────────────────────────────────────────────────────────────────
 

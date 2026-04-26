@@ -28,8 +28,8 @@ const COLUMNS: Column<Script>[] = [
     key: "duration",
     header: "Duration",
     render: (s) =>
-      s.duration_seconds ? (
-        <span className="tabular-nums text-xs">{formatDuration(s.duration_seconds)}</span>
+      s.target_duration_seconds ? (
+        <span className="tabular-nums text-xs">{formatDuration(s.target_duration_seconds)}</span>
       ) : (
         <span className="text-gray-600">—</span>
       ),
