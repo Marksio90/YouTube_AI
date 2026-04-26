@@ -299,8 +299,8 @@ async def _run_generate_brief(task, task_id, channel_id, topic_id, idp_key) -> d
                         (id, channel_id, topic_id, title, target_audience, key_points,
                          seo_keywords, estimated_duration_seconds, tone, status)
                     VALUES
-                        (:id, :channel_id, :topic_id, :title, '', :key_points,
-                         :seo_keywords, 600, 'educational', 'draft')
+                        (:id, :channel_id, :topic_id, :title, '', :key_points::jsonb,
+                         :seo_keywords::text[], 600, 'educational', 'draft')
                     RETURNING id
                 """),
                 {
@@ -309,7 +309,7 @@ async def _run_generate_brief(task, task_id, channel_id, topic_id, idp_key) -> d
                     "topic_id": topic_id,
                     "title": brief_out.title or topic_row["title"],
                     "key_points": _as_json(brief_out.keywords),
-                    "seo_keywords": brief_out.keywords,
+                    "seo_keywords": list(brief_out.keywords),
                 },
             )).fetchone()
             brief_id = str(row[0])
@@ -517,7 +517,7 @@ async def _persist_script(
                     (id, channel_id, title, hook, body, cta, keywords,
                      target_duration_seconds, tone, seo_score, compliance_score, status, version)
                 VALUES
-                    (:id, :channel_id, :title, :hook, :body, :cta, :keywords,
+                    (:id, :channel_id, :title, :hook, :body, :cta, :keywords::text[],
                      :dur, :tone, :seo, :compliance, 'draft', 1)
             """),
             {
@@ -527,7 +527,7 @@ async def _persist_script(
                 "hook": script_output.hook,
                 "body": script_output.body,
                 "cta": script_output.cta,
-                "keywords": script_output.keywords,
+                "keywords": list(script_output.keywords),
                 "dur": script_output.estimated_duration_seconds,
                 "tone": "educational",
                 "seo": seo_data.get("overall_score"),
