@@ -13,6 +13,7 @@ from slowapi.errors import RateLimitExceeded
 from app.api.v1.router import api_router
 from app.core.auth_middleware import auth_middleware
 from app.core.config import settings
+from app.core.csrf import csrf_middleware
 from app.core.rate_limit import limiter
 from app.core.exceptions import AppError
 from app.core.logging import configure_logging
@@ -53,6 +54,7 @@ app.add_middleware(
 )
 
 app.middleware("http")(correlation_id_middleware)
+app.middleware("http")(csrf_middleware)
 app.middleware("http")(auth_middleware)
 app.middleware("http")(metrics_middleware)
 
