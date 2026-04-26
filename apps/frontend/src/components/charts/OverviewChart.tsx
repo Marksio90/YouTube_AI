@@ -20,7 +20,7 @@ export function OverviewChart() {
   // Merge snapshots across all channels by date
   const byDate: Record<string, { date: string; views: number; revenue: number }> = {};
   data?.forEach((ch) =>
-    ch.snapshots.forEach((s) => {
+    ch.daily_snapshots.forEach((s) => {
       if (!byDate[s.snapshot_date]) {
         byDate[s.snapshot_date] = { date: s.snapshot_date, views: 0, revenue: 0 };
       }

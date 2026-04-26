@@ -54,6 +54,21 @@ class AnalyticsService:
             daily_snapshots=[AnalyticsSnapshotRead.model_validate(s) for s in snapshots],
         )
 
+    async def get_overview_aggregates(
+        self,
+        *,
+        owner_id: uuid.UUID,
+        days: int = 28,
+    ) -> list[AnalyticsAggregate]:
+        channels, _ = await self.channel_repo.list_owned(owner_id=owner_id, limit=1000)
+        if not channels:
+            return []
+
+        return [
+            await self.get_channel_aggregate(ch.id, owner_id=owner_id, days=days)
+            for ch in channels
+        ]
+
     async def get_publication_snapshots(
         self,
         publication_id: uuid.UUID,
