@@ -493,7 +493,7 @@ function RecommendationsTab({ period }: { period: number }) {
       {isLoading ? (
         <div className="space-y-0">{Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}</div>
       ) : isError ? (
-        <ErrorState message="Failed to load recommendations." />
+        <ErrorState title="Failed to load recommendations." />
       ) : !data?.length ? (
         <EmptyState
           icon={<Lightbulb className="h-5 w-5" />}
