@@ -4,8 +4,11 @@ from app.db.models.brief import Brief
 from app.db.models.channel import Channel
 from app.db.models.compliance import ComplianceCheck, RiskFlag
 from app.db.models.monetization import (
+    AffiliateConversionIdempotency,
     AffiliateLink,
     AffiliateLinkClick,
+    AffiliateSecurityAudit,
+    AffiliateTrackingNonce,
     Campaign,
     PublicationAffiliateLink,
     RevenueStream,
@@ -42,6 +45,9 @@ __all__ = [
     "RevenueStream",
     "AffiliateLink",
     "AffiliateLinkClick",
+    "AffiliateConversionIdempotency",
+    "AffiliateSecurityAudit",
+    "AffiliateTrackingNonce",
     "Campaign",
     "PublicationAffiliateLink",
     "ComplianceCheck",

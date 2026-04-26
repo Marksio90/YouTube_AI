@@ -29,10 +29,14 @@ Routes:
   DELETE /publications/{id}/affiliate-links/{lid}    detach link from video
 """
 import uuid
+from datetime import datetime, timezone
+import hashlib
+import hmac
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 
 from app.api.v1.deps import CurrentUser, DB
+from app.core.config import settings
 from app.repositories.channel import ChannelRepository
 from app.schemas.affiliate import (
     AffiliateLinkCreate,
@@ -61,6 +65,43 @@ async def _owned_channel(channel_id: uuid.UUID, user_id: uuid.UUID, db) -> None:
     channel = await ChannelRepository(db).get_owned(channel_id, owner_id=user_id)
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
+
+
+def _client_ip(request: Request) -> str | None:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    if request.client:
+        return request.client.host
+    return None
+
+
+def _verify_tracking_signature(
+    *,
+    event_type: str,
+    link_id: uuid.UUID,
+    ts: int | None,
+    nonce: str | None,
+    signature: str | None,
+) -> str | None:
+    if not settings.affiliate_tracking_hmac_secret:
+        return "hmac_secret_missing"
+    if ts is None or not nonce or not signature:
+        return "missing_signature_params"
+
+    now = int(datetime.now(tz=timezone.utc).timestamp())
+    if abs(now - ts) > settings.affiliate_tracking_max_skew_seconds:
+        return "timestamp_out_of_window"
+
+    payload = f"{event_type}:{link_id}:{ts}:{nonce}".encode("utf-8")
+    expected = hmac.new(
+        settings.affiliate_tracking_hmac_secret.encode("utf-8"),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected, signature):
+        return "invalid_signature"
+    return None
 
 
 # ── Campaigns ─────────────────────────────────────────────────────────────────
@@ -354,15 +395,95 @@ async def click_history(
 async def record_click(
     link_id: uuid.UUID,
     db: DB,
+    request: Request,
     publication_id: uuid.UUID | None = Query(default=None),
+    source: str | None = Query(default=None, max_length=64),
+    ts: int | None = Query(default=None, description="unix timestamp for HMAC signature"),
+    nonce: str | None = Query(default=None, max_length=128),
+    signature: str | None = Query(default=None, max_length=128),
+    x_fingerprint: str | None = Header(default=None, alias="X-Fingerprint"),
 ) -> ClickRead:
     svc = AffiliateService(db)
+    ip_address = _client_ip(request)
+    user_agent = request.headers.get("user-agent")
+    signature_error = _verify_tracking_signature(
+        event_type="click",
+        link_id=link_id,
+        ts=ts,
+        nonce=nonce,
+        signature=signature,
+    )
+    if signature_error:
+        await svc.audit_security_event(
+            event_type="click",
+            decision="rejected",
+            reason=signature_error,
+            link_id=link_id,
+            source=source,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            fingerprint=x_fingerprint,
+        )
+        await db.commit()
+        raise HTTPException(status_code=401, detail="Invalid click signature")
+
+    nonce_ok = await svc.register_tracking_nonce(link_id=link_id, event_type="click", nonce=nonce)
+    if not nonce_ok:
+        await svc.audit_security_event(
+            event_type="click",
+            decision="rejected",
+            reason="replay_nonce",
+            link_id=link_id,
+            source=source,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            fingerprint=x_fingerprint,
+        )
+        await db.commit()
+        raise HTTPException(status_code=409, detail="Replay detected")
+
+    limited, limit_reason = await svc.click_rate_limit_exceeded(
+        link_id=link_id,
+        ip_address=ip_address,
+        per_ip_limit=settings.affiliate_click_rate_limit_per_ip,
+        per_link_limit=settings.affiliate_click_rate_limit_per_link,
+        window_seconds=settings.affiliate_click_rate_limit_window_seconds,
+    )
+    if limited:
+        await svc.audit_security_event(
+            event_type="click",
+            decision="rejected",
+            reason=limit_reason,
+            link_id=link_id,
+            source=source,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            fingerprint=x_fingerprint,
+        )
+        await db.commit()
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
     try:
         click = await svc.record_click(
-            link_id, publication_id=publication_id
+            link_id,
+            publication_id=publication_id,
+            source=source,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            fingerprint=x_fingerprint,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    await svc.audit_security_event(
+        event_type="click",
+        decision="accepted",
+        reason=None,
+        link_id=link_id,
+        source=source,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        fingerprint=x_fingerprint,
+    )
     await db.commit()
     await db.refresh(click)
     return ClickRead.model_validate(click)
@@ -377,15 +498,81 @@ async def record_conversion(
     link_id: uuid.UUID,
     payload: ConversionRequest,
     db: DB,
+    request: Request,
+    source: str | None = Query(default=None, max_length=64),
+    ts: int | None = Query(default=None, description="unix timestamp for HMAC signature"),
+    nonce: str | None = Query(default=None, max_length=128),
+    signature: str | None = Query(default=None, max_length=128),
+    x_idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key"),
+    x_fingerprint: str | None = Header(default=None, alias="X-Fingerprint"),
 ) -> AffiliateLinkRead:
+    if not x_idempotency_key:
+        raise HTTPException(status_code=400, detail="Missing X-Idempotency-Key")
     svc = AffiliateService(db)
+    ip_address = _client_ip(request)
+    user_agent = request.headers.get("user-agent")
+    signature_error = _verify_tracking_signature(
+        event_type="conversion",
+        link_id=link_id,
+        ts=ts,
+        nonce=nonce,
+        signature=signature,
+    )
+    if signature_error:
+        await svc.audit_security_event(
+            event_type="conversion",
+            decision="rejected",
+            reason=signature_error,
+            link_id=link_id,
+            source=source,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            fingerprint=x_fingerprint,
+        )
+        await db.commit()
+        raise HTTPException(status_code=401, detail="Invalid conversion signature")
+
+    nonce_ok = await svc.register_tracking_nonce(
+        link_id=link_id,
+        event_type="conversion",
+        nonce=nonce,
+    )
+    if not nonce_ok:
+        await svc.audit_security_event(
+            event_type="conversion",
+            decision="rejected",
+            reason="replay_nonce",
+            link_id=link_id,
+            source=source,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            fingerprint=x_fingerprint,
+        )
+        await db.commit()
+        raise HTTPException(status_code=409, detail="Replay detected")
+
     link = await svc.record_conversion(
         link_id,
         publication_id=payload.publication_id,
         revenue_usd=payload.revenue_usd,
+        idempotency_key=x_idempotency_key,
+        source=source,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        fingerprint=x_fingerprint,
     )
     if not link:
         raise HTTPException(status_code=404, detail="Link not found")
+    await svc.audit_security_event(
+        event_type="conversion",
+        decision="accepted",
+        reason=None,
+        link_id=link_id,
+        source=source,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        fingerprint=x_fingerprint,
+    )
     await db.commit()
     await db.refresh(link)
     return AffiliateLinkRead.model_validate(link)

@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     sentry_dsn: str = ""
 
+    # ── Affiliate tracking security ──────────────────────────────────────────
+    affiliate_tracking_hmac_secret: str = ""
+    affiliate_tracking_max_skew_seconds: int = 300
+    affiliate_click_rate_limit_window_seconds: int = 60
+    affiliate_click_rate_limit_per_ip: int = 30
+    affiliate_click_rate_limit_per_link: int = 300
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

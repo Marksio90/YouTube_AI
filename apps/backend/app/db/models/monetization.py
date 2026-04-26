@@ -391,6 +391,10 @@ class AffiliateLinkClick(Base, UUIDMixin):
         ForeignKey("affiliate_campaigns.id", ondelete="SET NULL"),
         nullable=True,
     )
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fingerprint: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     clicked_at:            Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -405,3 +409,74 @@ class AffiliateLinkClick(Base, UUIDMixin):
 
     def __repr__(self) -> str:
         return f"<AffiliateLinkClick link={self.link_id} at={self.clicked_at}>"
+
+
+class AffiliateConversionIdempotency(Base, UUIDMixin):
+    __tablename__ = "affiliate_conversion_idempotency"
+    __table_args__ = (
+        UniqueConstraint("link_id", "idempotency_key", name="uq_aff_conversion_link_key"),
+        Index("ix_aff_conversion_idempotency_link_id", "link_id"),
+    )
+
+    link_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("affiliate_links.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    publication_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("publications.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    revenue_usd: Mapped[float] = mapped_column(Numeric(14, 4), nullable=False, default=0.0)
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fingerprint: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class AffiliateSecurityAudit(Base, UUIDMixin):
+    __tablename__ = "affiliate_security_audit"
+    __table_args__ = (
+        Index("ix_aff_security_audit_link_id", "link_id"),
+        Index("ix_aff_security_audit_event_time", "event_time"),
+    )
+
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    decision: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    link_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("affiliate_links.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fingerprint: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    event_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class AffiliateTrackingNonce(Base, UUIDMixin):
+    __tablename__ = "affiliate_tracking_nonces"
+    __table_args__ = (
+        UniqueConstraint("link_id", "event_type", "nonce", name="uq_aff_tracking_nonce"),
+        Index("ix_aff_tracking_nonce_event_time", "created_at"),
+    )
+
+    link_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("affiliate_links.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    nonce: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
