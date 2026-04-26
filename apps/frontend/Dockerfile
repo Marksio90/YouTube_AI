@@ -19,6 +19,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 FROM base AS development
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
+COPY --from=deps /repo/apps/frontend/node_modules ./apps/frontend/node_modules
+COPY --from=deps /repo/packages/shared/node_modules ./packages/shared/node_modules
 COPY package.json pnpm-workspace.yaml ./
 COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/shared/package.json ./packages/shared/
@@ -32,6 +34,8 @@ CMD ["pnpm", "dev", "--hostname", "0.0.0.0"]
 FROM base AS builder
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
+COPY --from=deps /repo/apps/frontend/node_modules ./apps/frontend/node_modules
+COPY --from=deps /repo/packages/shared/node_modules ./packages/shared/node_modules
 COPY . .
 RUN pnpm --filter frontend build
 
