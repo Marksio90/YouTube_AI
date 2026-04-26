@@ -210,8 +210,9 @@ async def enqueue_channel_score(
     if not channel:
         raise NotFoundError("Channel not found or access denied")
 
-    from worker.tasks.scoring import compute_channel_score
-    task = compute_channel_score.apply_async(
+    from celery import current_app as celery_app
+    task = celery_app.send_task(
+        "worker.tasks.scoring.compute_channel_score",
         kwargs={
             "channel_id": str(channel_id),
             "owner_id": str(current_user.id),
@@ -288,8 +289,9 @@ async def generate_recommendations(
     if not channel:
         raise NotFoundError("Channel not found or access denied")
 
-    from worker.tasks.scoring import generate_recommendations as _task
-    task = _task.apply_async(
+    from celery import current_app as celery_app
+    task = celery_app.send_task(
+        "worker.tasks.scoring.generate_recommendations",
         kwargs={"channel_id": str(channel_id), "force": True},
         queue="analytics",
     )
