@@ -1,4 +1,9 @@
-import type { WorkflowRun, WorkflowJob, WorkflowAuditEvent, PaginatedResponse } from "@/lib/types";
+import type { WorkflowRun, WorkflowJob, PaginatedResponse } from "@/lib/types";
+import type {
+  TriggerWorkflowRequest,
+  WorkflowActionResponse,
+  WorkflowAuditResponse,
+} from "@/lib/contracts/workflows";
 import { apiClient } from "./client";
 
 export const workflowsApi = {
@@ -12,15 +17,15 @@ export const workflowsApi = {
 
   get: (id: string) => apiClient.get<WorkflowRun>(`/workflows/${id}`),
 
-  trigger: (data: { channel_id?: string; topic_id?: string; pipeline_name?: string; context?: Record<string, unknown> }) =>
-    apiClient.post<WorkflowRun>("/workflows", data),
+  trigger: (data: TriggerWorkflowRequest) =>
+    apiClient.post<WorkflowActionResponse>("/workflows", data),
 
-  audit: (id: string) => apiClient.get<WorkflowAuditEvent[]>(`/workflows/${id}/audit`),
+  audit: (id: string) => apiClient.get<WorkflowAuditResponse>(`/workflows/${id}/audit`),
 
-  pause:   (id: string) => apiClient.post<void>(`/workflows/${id}/pause`, {}),
-  resume:  (id: string) => apiClient.post<void>(`/workflows/${id}/resume`, {}),
-  cancel:  (id: string) => apiClient.post<void>(`/workflows/${id}/cancel`, {}),
-  retry:   (id: string) => apiClient.post<void>(`/workflows/${id}/retry`, {}),
+  pause:   (id: string) => apiClient.post<WorkflowActionResponse>(`/workflows/${id}/pause`, {}),
+  resume:  (id: string) => apiClient.post<WorkflowActionResponse>(`/workflows/${id}/resume`, {}),
+  cancel:  (id: string) => apiClient.post<WorkflowActionResponse>(`/workflows/${id}/cancel`, {}),
+  retry:   (id: string) => apiClient.post<WorkflowActionResponse>(`/workflows/${id}/retry`, {}),
 
   jobs: (id: string) => apiClient.get<WorkflowJob[]>(`/workflows/${id}/jobs`),
 
@@ -28,7 +33,7 @@ export const workflowsApi = {
     apiClient.post<void>(`/workflows/${runId}/jobs/${stepId}/skip`, {}),
 
   retryJob:  (runId: string, stepId: string) =>
-    apiClient.post<void>(`/workflows/${runId}/jobs/${stepId}/retry`, {}),
+    apiClient.post<WorkflowActionResponse>(`/workflows/${runId}/jobs/${stepId}/retry`, {}),
 
   injectResult: (runId: string, stepId: string, result: Record<string, unknown>, actor: string) =>
     apiClient.post<void>(`/workflows/${runId}/jobs/${stepId}/inject`, { result, actor }),
