@@ -141,13 +141,17 @@ export interface AnalyticsSnapshot {
 
 export interface ChannelAnalytics {
   channel_id: string;
-  period_days: number;
+  date_from: string;
+  date_to: string;
   total_views: number;
+  total_watch_time_hours: number;
   total_revenue_usd: number;
+  subscribers_gained: number;
+  subscribers_lost: number;
+  net_subscribers: number;
+  avg_rpm: number;
   avg_ctr: number;
-  avg_view_duration_seconds: number;
-  subscribers_net: number;
-  snapshots: AnalyticsSnapshot[];
+  daily_snapshots: AnalyticsSnapshot[];
 }
 
 // ── Performance Scores ────────────────────────────────────────────────────────

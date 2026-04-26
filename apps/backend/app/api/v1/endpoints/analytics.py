@@ -1,8 +1,8 @@
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Path
+from fastapi import APIRouter, Query, Path, HTTPException
 
 from app.api.v1.deps import CurrentUser, DB
 from app.core.exceptions import NotFoundError
@@ -43,17 +43,38 @@ async def publication_analytics(
     publication_id: uuid.UUID,
     current_user: CurrentUser,
     db: DB,
-    date_from: date = Query(...),
-    date_to: date = Query(...),
+    days: int | None = Query(None, ge=1, le=365),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
 ) -> list[AnalyticsSnapshotRead]:
     from app.repositories.publication import PublicationRepository
     pub = await PublicationRepository(db).get_for_user(publication_id, owner_id=current_user.id)
     if not pub:
         raise NotFoundError("Publication not found")
+
+    if days is not None:
+        date_to = date.today()
+        date_from = date_to - timedelta(days=days - 1)
+    elif date_from is None or date_to is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide either `days` or both `date_from` and `date_to`",
+        )
+
     svc = AnalyticsService(db)
     return await svc.get_publication_snapshots(
         publication_id, date_from=date_from, date_to=date_to
     )
+
+
+@router.get("/overview", response_model=list[AnalyticsAggregate])
+async def overview_analytics(
+    current_user: CurrentUser,
+    db: DB,
+    days: int = Query(28, ge=1, le=365),
+) -> list[AnalyticsAggregate]:
+    svc = AnalyticsService(db)
+    return await svc.get_overview_aggregates(owner_id=current_user.id, days=days)
 
 
 @router.post("/snapshots", response_model=AnalyticsSnapshotRead)
