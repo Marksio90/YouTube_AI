@@ -2,10 +2,11 @@ import uuid
 from datetime import date, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Path, status
+from fastapi import APIRouter, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
 from app.core.exceptions import NotFoundError
+from app.repositories.channel import ChannelRepository
 from app.schemas.monetization import (
     AffiliateLinkCreate,
     AffiliateLinkRead,
@@ -42,7 +43,12 @@ async def channel_revenue_overview(
     db: DB,
     days: int = Query(_DEFAULT_DAYS, ge=7, le=365),
 ) -> ChannelRevenueOverview:
-    _verify_channel_access(channel_id, current_user)
+    await _verify_channel_access(
+        db,
+        channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     period_start, period_end = _default_window(days)
     svc = MonetizationService(db)
     return await svc.channel_overview(
@@ -61,7 +67,12 @@ async def channel_roi(
     db: DB,
     days: int = Query(_DEFAULT_DAYS, ge=7, le=365),
 ) -> ROISummary:
-    _verify_channel_access(channel_id, current_user)
+    await _verify_channel_access(
+        db,
+        channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     period_start, period_end = _default_window(days)
     svc = MonetizationService(db)
     return await svc.roi_summary(
@@ -82,7 +93,12 @@ async def list_channel_streams(
     source: str | None = Query(None, pattern="^(ads|affiliate|products|sponsorship)$"),
     limit: int = Query(100, ge=1, le=500),
 ) -> list[RevenueStreamRead]:
-    _verify_channel_access(channel_id, current_user)
+    await _verify_channel_access(
+        db,
+        channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     period_start, period_end = _default_window(days)
     svc = MonetizationService(db)
     from app.db.models.monetization import RevenueSource
@@ -107,7 +123,12 @@ async def upsert_stream(
     current_user: CurrentUser,
     db: DB,
 ) -> RevenueStreamRead:
-    _verify_channel_access(channel_id, current_user)
+    await _verify_channel_access(
+        db,
+        channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     if payload.channel_id != channel_id:
         payload = payload.model_copy(update={"channel_id": channel_id})
     svc = MonetizationService(db)
@@ -128,16 +149,15 @@ async def publication_revenue_overview(
     current_user: CurrentUser,
     db: DB,
 ) -> PublicationRevenueOverview:
-    from app.repositories.publication import PublicationRepository
-    repo = PublicationRepository(db)
-    pub = await repo.get(publication_id)
-    if not pub:
-        raise NotFoundError("Publication not found")
-
     svc = MonetizationService(db)
-    return await svc.publication_overview(
-        publication_id, channel_id=pub.channel_id
+    overview = await svc.publication_overview(
+        publication_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
     )
+    if not overview:
+        raise NotFoundError("Publication not found")
+    return overview
 
 
 # ── Affiliate links ───────────────────────────────────────────────────────────
@@ -154,7 +174,12 @@ async def list_affiliate_links(
     active_only: bool = Query(True),
     limit: int = Query(100, ge=1, le=500),
 ) -> list[AffiliateLinkRead]:
-    _verify_channel_access(channel_id, current_user)
+    await _verify_channel_access(
+        db,
+        channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     svc = MonetizationService(db)
     links = await svc.list_affiliate_links(
         channel_id, active_only=active_only, limit=limit
@@ -174,7 +199,12 @@ async def create_affiliate_link(
     current_user: CurrentUser,
     db: DB,
 ) -> AffiliateLinkRead:
-    _verify_channel_access(channel_id, current_user)
+    await _verify_channel_access(
+        db,
+        channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     if payload.channel_id != channel_id:
         payload = payload.model_copy(update={"channel_id": channel_id})
     svc = MonetizationService(db)
@@ -195,7 +225,12 @@ async def update_affiliate_link(
     db: DB,
 ) -> AffiliateLinkRead:
     svc = MonetizationService(db)
-    link = await svc.update_affiliate_link(link_id, payload)
+    link = await svc.update_affiliate_link(
+        link_id,
+        payload,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     if not link:
         raise NotFoundError("Affiliate link not found")
     await db.commit()
@@ -209,10 +244,15 @@ async def update_affiliate_link(
 )
 async def record_click(
     link_id: uuid.UUID,
+    current_user: CurrentUser,
     db: DB,
 ) -> AffiliateLinkRead:
     svc = MonetizationService(db)
-    link = await svc.record_click(link_id)
+    link = await svc.record_click(
+        link_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     if not link:
         raise NotFoundError("Affiliate link not found")
     await db.commit()
@@ -226,11 +266,17 @@ async def record_click(
 )
 async def record_conversion(
     link_id: uuid.UUID,
+    current_user: CurrentUser,
     db: DB,
     revenue_usd: float = Query(..., ge=0, description="Commission earned from this conversion"),
 ) -> AffiliateLinkRead:
     svc = MonetizationService(db)
-    link = await svc.record_conversion(link_id, revenue_usd)
+    link = await svc.record_conversion(
+        link_id,
+        revenue_usd,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     if not link:
         raise NotFoundError("Affiliate link not found")
     await db.commit()
@@ -239,11 +285,17 @@ async def record_conversion(
 
 # ── Private ───────────────────────────────────────────────────────────────────
 
-def _verify_channel_access(channel_id: uuid.UUID, current_user) -> None:
-    """
-    Lightweight guard — full ownership check done in ChannelRepository.
-    Endpoints that need strict verification use get_owned() directly.
-    For monetization reads we trust the JWT and rely on FK constraints.
-    Swap this for a proper get_owned() call when multi-tenant is enforced.
-    """
-    pass
+async def _verify_channel_access(
+    db: DB,
+    channel_id: uuid.UUID,
+    *,
+    owner_id: uuid.UUID,
+    organization_id: uuid.UUID | None,
+) -> None:
+    channel = await ChannelRepository(db).get_owned(
+        channel_id,
+        owner_id=owner_id,
+        organization_id=organization_id,
+    )
+    if not channel:
+        raise NotFoundError("Channel not found")
