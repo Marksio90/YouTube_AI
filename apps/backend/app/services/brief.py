@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.db.models.brief import Brief
+from app.db.models.brief import Brief, BriefStatus
 from app.repositories.brief import BriefRepository
 from app.repositories.channel import ChannelRepository
 from app.schemas.brief import BriefCreate, BriefUpdate
@@ -21,18 +21,16 @@ class BriefService:
         *,
         channel_id: uuid.UUID | None = None,
         topic_id: uuid.UUID | None = None,
-        status: str | None = None,
+        status: BriefStatus | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> PaginatedResponse:
-        from app.db.models.brief import BriefStatus
         offset = (page - 1) * page_size
-        status_enum = BriefStatus(status) if status else None
         rows, total = await self.repo.list_for_user(
             owner_id,
             channel_id=channel_id,
             topic_id=topic_id,
-            status=status_enum,
+            status=status,
             offset=offset,
             limit=page_size,
         )

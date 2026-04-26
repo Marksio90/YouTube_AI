@@ -115,13 +115,11 @@ async def list_campaigns(
     channel_id: uuid.UUID,
     current_user: CurrentUser,
     db: DB,
-    status: str | None = Query(default=None),
+    status: CampaignStatus | None = Query(default=None),
 ) -> list[CampaignRead]:
     await _owned_channel(channel_id, current_user.id, db)
     svc = AffiliateService(db)
-    from app.db.models.monetization import CampaignStatus
-    status_enum = CampaignStatus(status) if status else None
-    campaigns = await svc.list_campaigns(channel_id, status=status_enum)
+    campaigns = await svc.list_campaigns(channel_id, status=status)
     return [CampaignRead.model_validate(c) for c in campaigns]
 
 

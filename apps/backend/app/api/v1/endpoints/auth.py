@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from app.api.v1.deps import DB, CurrentUser
 from app.core.config import settings
+from app.core.csrf import clear_csrf_cookie, generate_csrf_token, set_csrf_cookie
 from app.core.rate_limit import limiter
 from app.core.security import (
     TokenValidationError,
@@ -35,11 +36,20 @@ def _set_auth_cookies(response: Response, *, access_token: str, refresh_token: s
         max_age=settings.refresh_token_expire_days * 86400,
         **_COOKIE_OPTS,
     )
+    set_csrf_cookie(response, generate_csrf_token())
 
 
 def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie("access_token", **_COOKIE_OPTS)
     response.delete_cookie("refresh_token", **_COOKIE_OPTS)
+    clear_csrf_cookie(response)
+
+
+@router.get("/csrf", status_code=status.HTTP_200_OK)
+async def csrf(response: Response) -> dict[str, str]:
+    token = generate_csrf_token()
+    set_csrf_cookie(response, token)
+    return {"csrf_token": token}
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
