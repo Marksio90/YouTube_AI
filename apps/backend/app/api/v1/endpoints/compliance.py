@@ -1,11 +1,12 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, status
+from fastapi import APIRouter, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
 from app.core.exceptions import NotFoundError
 from app.db.models.compliance import CheckStatus
+from app.repositories.channel import ChannelRepository
 from app.schemas.compliance import (
     ComplianceCheckCreate,
     ComplianceCheckDetail,
@@ -38,7 +39,20 @@ async def run_check(
     current_user: CurrentUser,
     db: DB,
 ) -> ComplianceCheckRead:
-    check = await _svc(db).run_check(payload, channel_id=channel_id)
+    channel = await ChannelRepository(db).get_owned(
+        channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
+    if not channel:
+        raise NotFoundError(f"Channel {channel_id} not found")
+
+    check = await _svc(db).run_check(
+        payload,
+        channel_id=channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     await db.commit()
     await db.refresh(check)
     return check
@@ -56,7 +70,11 @@ async def get_check(
     current_user: CurrentUser,
     db: DB,
 ) -> ComplianceCheckDetail:
-    detail = await _svc(db).get_check_detail(check_id)
+    detail = await _svc(db).get_check_detail(
+        check_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     if not detail:
         raise NotFoundError(f"Compliance check {check_id} not found")
     return detail
@@ -77,6 +95,14 @@ async def list_checks(
     check_status: str | None = Query(None, alias="status"),
     limit: int = Query(50, ge=1, le=200),
 ) -> list[ComplianceSummary]:
+    channel = await ChannelRepository(db).get_owned(
+        channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
+    if not channel:
+        raise NotFoundError(f"Channel {channel_id} not found")
+
     status_filter: CheckStatus | None = None
     if check_status:
         try:
@@ -85,6 +111,8 @@ async def list_checks(
             pass
     checks = await _svc(db).list_checks(
         channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
         script_id=script_id,
         status=status_filter,
         limit=limit,
@@ -104,7 +132,11 @@ async def latest_for_script(
     current_user: CurrentUser,
     db: DB,
 ) -> ComplianceCheckRead | None:
-    return await _svc(db).latest_for_script(script_id)
+    return await _svc(db).latest_for_script(
+        script_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
 
 
 # ── Override a blocked check ──────────────────────────────────────────────────
@@ -120,7 +152,12 @@ async def override_check(
     current_user: CurrentUser,
     db: DB,
 ) -> ComplianceCheckRead:
-    check = await _svc(db).override_check(check_id, payload)
+    check = await _svc(db).override_check(
+        check_id,
+        payload,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     await db.commit()
     return check
 
@@ -138,6 +175,11 @@ async def dismiss_flag(
     current_user: CurrentUser,
     db: DB,
 ) -> RiskFlagRead:
-    flag = await _svc(db).dismiss_flag(flag_id, dismissed_by=payload.dismissed_by)
+    flag = await _svc(db).dismiss_flag(
+        flag_id,
+        dismissed_by=payload.dismissed_by,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
     await db.commit()
     return flag
