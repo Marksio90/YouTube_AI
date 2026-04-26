@@ -9,6 +9,8 @@ export function useWorkflows(params: Parameters<typeof workflowsApi.list>[0] = {
   });
 }
 
+const MAX_POLL_MS = 30 * 60 * 1000;
+
 export function useWorkflow(id: string) {
   return useQuery({
     queryKey: ["workflows", id],
@@ -16,7 +18,10 @@ export function useWorkflow(id: string) {
     enabled: !!id,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === "running" || status === "pending" ? 3000 : false;
+      if (status !== "running" && status !== "pending") return false;
+      const age = Date.now() - (query.state.dataUpdatedAt ?? Date.now());
+      if (age > MAX_POLL_MS) return false;
+      return 3000;
     },
   });
 }
