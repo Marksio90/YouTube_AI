@@ -147,12 +147,11 @@ async def _fetch_channel_metrics(
 async def _real_channel_metrics(
     channel: dict, snapshot_date: str, youtube_channel_id: str
 ) -> dict:
-    from app.integrations.youtube_analytics import YouTubeAnalyticsClient
+    from worker.integrations.youtube_analytics import YouTubeAnalyticsClient
 
     async with get_db_session() as db:
         async with YouTubeAnalyticsClient.from_channel_row(channel, db_session=db) as client:
             metrics = await client.channel_report(youtube_channel_id, snapshot_date)
-        await db.commit()
 
     return metrics
 
@@ -377,14 +376,13 @@ async def _real_publication_metrics(
     youtube_video_id: str,
     youtube_channel_id: str | None,
 ) -> dict:
-    from app.integrations.youtube_analytics import YouTubeAnalyticsClient
+    from worker.integrations.youtube_analytics import YouTubeAnalyticsClient
 
     async with get_db_session() as db:
         async with YouTubeAnalyticsClient.from_channel_row(pub, db_session=db) as client:
             metrics = await client.video_report(
                 youtube_video_id, snapshot_date, youtube_channel_id
             )
-        await db.commit()
 
     return metrics
 

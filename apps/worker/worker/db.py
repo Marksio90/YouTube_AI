@@ -7,6 +7,7 @@ Rules:
 - Both clients are module-level singletons — created once per worker process.
 """
 
+import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -46,16 +47,19 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 # ── Redis (sync) ──────────────────────────────────────────────────────────────
 _redis_client: redis_sync.Redis | None = None
+_redis_lock = threading.Lock()
 
 
 def get_redis() -> redis_sync.Redis:
     global _redis_client
     if _redis_client is None:
-        _redis_client = redis_sync.Redis.from_url(
-            settings.redis_url,
-            decode_responses=True,
-            socket_connect_timeout=5,
-            socket_timeout=5,
-            retry_on_timeout=True,
-        )
+        with _redis_lock:
+            if _redis_client is None:
+                _redis_client = redis_sync.Redis.from_url(
+                    settings.redis_url,
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    socket_timeout=5,
+                    retry_on_timeout=True,
+                )
     return _redis_client

@@ -92,7 +92,7 @@ spec:
             - --loglevel=info
             - --concurrency=4
             - -Q
-            - default,high,ai,media,analytics,pipeline
+            - default,high,ai,media,analytics
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false

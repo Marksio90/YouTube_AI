@@ -130,6 +130,15 @@ app.conf.beat_schedule = {
 
 
 # ── Signals ───────────────────────────────────────────────────────────────────
+@app.on_after_finalize.connect
+def validate_beat_schedule(sender, **kwargs) -> None:
+    for name, entry in sender.conf.beat_schedule.items():
+        task_name = entry["task"]
+        assert task_name in sender.tasks, (
+            f"Beat task not registered: {task_name!r} (schedule entry: {name!r})"
+        )
+
+
 @setup_logging.connect
 def on_setup_logging(**_kwargs) -> None:
     from worker.logging import configure_logging
@@ -159,5 +168,6 @@ import worker.tasks.pipeline       # noqa: E402, F401
 import worker.tasks.recommendations  # noqa: E402, F401
 import worker.tasks.scoring        # noqa: E402, F401
 import worker.tasks.topics         # noqa: E402, F401
+import worker.tasks.workflow       # noqa: E402, F401
 import worker.tasks.youtube        # noqa: E402, F401
 import worker.tasks.optimization   # noqa: E402, F401
