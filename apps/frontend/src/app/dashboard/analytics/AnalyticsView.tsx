@@ -469,7 +469,7 @@ function RecCard({ rec, channelId }: { rec: Recommendation; channelId: string })
 function RecommendationsTab({ period }: { period: number }) {
   const { data: channels } = useChannels(1);
   const channelId = channels?.items[0]?.id ?? "";
-  const { data, isLoading } = useRecommendations(channelId);
+  const { data, isLoading, isError } = useRecommendations(channelId);
   const generate = useGenerateRecommendations(channelId);
 
   return (
@@ -486,8 +486,14 @@ function RecommendationsTab({ period }: { period: number }) {
         </button>
       </div>
 
+      {generate.isError && (
+        <p className="text-xs text-red-400 px-1">Failed to regenerate recommendations. Please try again.</p>
+      )}
+
       {isLoading ? (
         <div className="space-y-0">{Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}</div>
+      ) : isError ? (
+        <ErrorState message="Failed to load recommendations." />
       ) : !data?.length ? (
         <EmptyState
           icon={<Lightbulb className="h-5 w-5" />}

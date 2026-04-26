@@ -40,12 +40,18 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-media_os} -d ${POSTGRES_DB:-ai_media_os}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
     networks:
       - media_os_net
 
@@ -62,7 +68,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
@@ -93,6 +99,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
     networks:
       - media_os_net
 
@@ -112,6 +124,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A worker.celery_app inspect ping --timeout=5 2>&1 | grep -q OK"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
     networks:
       - media_os_net
 
@@ -130,6 +154,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A worker.celery_app inspect ping --timeout=5 2>&1 | grep -q OK"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
     networks:
       - media_os_net
 
@@ -147,7 +177,13 @@ services:
     depends_on:
       - redis
     ports:
-      - "5555:5555"
+      - "127.0.0.1:5555:5555"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555/flower/api/workers"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - media_os_net
 

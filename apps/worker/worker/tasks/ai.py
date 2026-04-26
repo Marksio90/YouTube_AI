@@ -14,6 +14,7 @@ import structlog
 from celery import Task
 
 from worker.celery_app import app
+from worker.config import settings
 from worker.db import get_db_session
 from worker.idempotency import guard as idp
 from worker.tasks.error_handling import TASK_FAILURE_EXCEPTIONS, is_retryable_error, log_task_failure
@@ -204,7 +205,7 @@ async def _run_generate_script(
     async with get_db_session() as db:
         await registry.record_success(db, task_id=task_id, result=result)
 
-    idp.set_result(idp_key, result, ttl=3600)
+    idp.set_result(idp_key, result, ttl=settings.idempotency_ai_ttl)
     log.info("generate_script.complete", script_id=script_id, task_id=task_id)
     return result
 
@@ -320,7 +321,7 @@ async def _run_generate_brief(task, task_id, channel_id, topic_id, idp_key) -> d
         await registry.record_success(db, task_id=task_id, result={"brief_id": brief_id})
 
     result = {"brief_id": brief_id, "topic_id": topic_id}
-    idp.set_result(idp_key, result, ttl=3600)
+    idp.set_result(idp_key, result, ttl=settings.idempotency_ai_ttl)
     return result
 
 
@@ -358,7 +359,7 @@ def analyze_seo(self, *, script_id: str) -> dict[str, Any]:
             retryable=retryable,
         )
         if retryable:
-            raise self.retry(exc=exc)
+            raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
         raise
 
 
@@ -395,7 +396,7 @@ async def _run_analyze_seo(task, task_id, script_id, idp_key) -> dict:
         )
         await registry.record_success(db, task_id=task_id, result=seo)
 
-    idp.set_result(idp_key, seo, ttl=3600)
+    idp.set_result(idp_key, seo, ttl=settings.idempotency_ai_ttl)
     return seo
 
 
@@ -433,7 +434,7 @@ def check_compliance(self, *, script_id: str) -> dict[str, Any]:
             retryable=retryable,
         )
         if retryable:
-            raise self.retry(exc=exc)
+            raise self.retry(exc=exc, countdown=30 * (self.request.retries + 1))
         raise
 
 
@@ -482,7 +483,7 @@ async def _run_check_compliance(task, task_id, script_id, idp_key) -> dict:
         )
         await registry.record_success(db, task_id=task_id, result=result)
 
-    idp.set_result(idp_key, result, ttl=3600)
+    idp.set_result(idp_key, result, ttl=settings.idempotency_ai_ttl)
     return result
 
 

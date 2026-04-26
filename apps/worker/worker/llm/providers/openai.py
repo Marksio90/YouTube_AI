@@ -60,8 +60,17 @@ class OpenAIProvider(BaseProvider):
                 **kwargs,
             )
         except OAIRateLimitError as exc:
+            retry_after: float | None = None
+            if hasattr(exc, "response") and exc.response is not None:
+                raw = exc.response.headers.get("retry-after")
+                if raw is not None:
+                    try:
+                        retry_after = float(raw)
+                    except ValueError:
+                        pass
             raise RateLimitError(
-                str(exc), provider=self.name, model=config.model, trace_id=trace_id
+                str(exc), retry_after_seconds=retry_after,
+                provider=self.name, model=config.model, trace_id=trace_id,
             ) from exc
         except APIStatusError as exc:
             raise ProviderError(

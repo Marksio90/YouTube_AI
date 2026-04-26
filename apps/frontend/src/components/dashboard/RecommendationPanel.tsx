@@ -5,6 +5,7 @@ import { useChannels } from "@/lib/hooks/useChannels";
 import { Badge } from "@/components/ui/Badge";
 import { SkeletonRow } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
 import type { Recommendation, RecommendationType, RecommendationPriority } from "@/lib/types";
 import {
   Lightbulb,
@@ -120,7 +121,7 @@ export function RecommendationPanel({ channelId }: { channelId?: string }) {
   const { data: channels } = useChannels(1);
   const effectiveChannelId = channelId ?? channels?.items[0]?.id ?? "";
 
-  const { data, isLoading } = useRecommendations(effectiveChannelId);
+  const { data, isLoading, isError } = useRecommendations(effectiveChannelId);
 
   return (
     <div className="card p-5">
@@ -135,6 +136,8 @@ export function RecommendationPanel({ channelId }: { channelId?: string }) {
         <div className="space-y-0">
           {Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}
         </div>
+      ) : isError ? (
+        <ErrorState message="Failed to load recommendations. Please try again." />
       ) : !data?.length ? (
         <EmptyState
           icon={<Lightbulb className="h-5 w-5" />}
