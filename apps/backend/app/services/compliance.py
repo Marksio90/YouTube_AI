@@ -47,6 +47,7 @@ from app.db.models.compliance import (
     RiskFlag,
     RiskSeverity,
 )
+from app.db.models.channel import Channel
 from app.db.models.script import Script
 from app.schemas.compliance import (
     CategoryBreakdown,
@@ -94,6 +95,8 @@ class ComplianceService:
         payload: ComplianceCheckCreate,
         *,
         channel_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None = None,
         dispatch_ai: bool = True,
     ) -> ComplianceCheck:
         """
@@ -108,9 +111,15 @@ class ComplianceService:
         existing_titles: list[str] = []
 
         if payload.script_id:
-            script = await self._load_script(payload.script_id)
+            script = await self._load_script(
+                payload.script_id,
+                owner_id=owner_id,
+                organization_id=organization_id,
+            )
             if not script:
                 raise ValueError(f"Script {payload.script_id} not found")
+            if script.channel_id != channel_id:
+                raise ValueError(f"Script {payload.script_id} does not belong to channel {channel_id}")
             title = script.title
             body  = f"{script.hook}\n{script.body}\n{script.cta}"
             ai_generated = script.seo_score is not None  # proxy: AI ran on this script
@@ -187,8 +196,15 @@ class ComplianceService:
         self,
         check_id: uuid.UUID,
         payload: ComplianceCheckOverride,
+        *,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None = None,
     ) -> ComplianceCheck:
-        check = await self._get_check(check_id)
+        check = await self._get_check(
+            check_id,
+            owner_id=owner_id,
+            organization_id=organization_id,
+        )
         if not check:
             raise ValueError(f"Check {check_id} not found")
         if check.status != CheckStatus.blocked:
@@ -213,12 +229,21 @@ class ComplianceService:
         flag_id: uuid.UUID,
         *,
         dismissed_by: str,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None = None,
     ) -> RiskFlag:
-        flag = (
-            await self._db.execute(
-                select(RiskFlag).where(RiskFlag.id == flag_id)
+        q = (
+            select(RiskFlag)
+            .join(ComplianceCheck, ComplianceCheck.id == RiskFlag.check_id)
+            .join(Channel, Channel.id == ComplianceCheck.channel_id)
+            .where(
+                RiskFlag.id == flag_id,
+                Channel.owner_id == owner_id,
             )
-        ).scalar_one_or_none()
+        )
+        if organization_id is not None:
+            q = q.where(Channel.organization_id == organization_id)
+        flag = (await self._db.execute(q)).scalar_one_or_none()
         if not flag:
             raise ValueError(f"Flag {flag_id} not found")
         flag.is_dismissed = True
@@ -226,7 +251,11 @@ class ComplianceService:
         flag.dismissed_at = datetime.now(timezone.utc)
 
         # Recompute check score excluding dismissed flags
-        check = await self._get_check(flag.check_id)
+        check = await self._get_check(
+            flag.check_id,
+            owner_id=owner_id,
+            organization_id=organization_id,
+        )
         if check:
             await self._update_score(check)
             await self._set_status(check)
@@ -238,8 +267,18 @@ class ComplianceService:
     async def get_check(self, check_id: uuid.UUID) -> ComplianceCheck | None:
         return await self._get_check(check_id)
 
-    async def get_check_detail(self, check_id: uuid.UUID) -> ComplianceCheckDetail | None:
-        check = await self._get_check(check_id)
+    async def get_check_detail(
+        self,
+        check_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None = None,
+    ) -> ComplianceCheckDetail | None:
+        check = await self._get_check(
+            check_id,
+            owner_id=owner_id,
+            organization_id=organization_id,
+        )
         if not check:
             return None
         return _build_detail(check)
@@ -248,16 +287,22 @@ class ComplianceService:
         self,
         channel_id: uuid.UUID,
         *,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None = None,
         script_id: uuid.UUID | None = None,
         status: CheckStatus | None = None,
         limit: int = 50,
     ) -> list[ComplianceCheck]:
         q = (
             select(ComplianceCheck)
+            .join(Channel, Channel.id == ComplianceCheck.channel_id)
             .where(ComplianceCheck.channel_id == channel_id)
+            .where(Channel.owner_id == owner_id)
             .order_by(ComplianceCheck.created_at.desc())
             .limit(limit)
         )
+        if organization_id is not None:
+            q = q.where(Channel.organization_id == organization_id)
         if script_id:
             q = q.where(ComplianceCheck.script_id == script_id)
         if status:
@@ -265,32 +310,62 @@ class ComplianceService:
         return list((await self._db.execute(q)).scalars().all())
 
     async def latest_for_script(
-        self, script_id: uuid.UUID
+        self,
+        script_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None = None,
     ) -> ComplianceCheck | None:
-        return (
-            await self._db.execute(
-                select(ComplianceCheck)
-                .where(ComplianceCheck.script_id == script_id)
-                .order_by(ComplianceCheck.created_at.desc())
-                .limit(1)
+        q = (
+            select(ComplianceCheck)
+            .join(Channel, Channel.id == ComplianceCheck.channel_id)
+            .where(
+                ComplianceCheck.script_id == script_id,
+                Channel.owner_id == owner_id,
             )
-        ).scalar_one_or_none()
+            .order_by(ComplianceCheck.created_at.desc())
+            .limit(1)
+        )
+        if organization_id is not None:
+            q = q.where(Channel.organization_id == organization_id)
+        return (await self._db.execute(q)).scalar_one_or_none()
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
-    async def _get_check(self, check_id: uuid.UUID) -> ComplianceCheck | None:
-        return (
-            await self._db.execute(
-                select(ComplianceCheck).where(ComplianceCheck.id == check_id)
-            )
-        ).scalar_one_or_none()
+    async def _get_check(
+        self,
+        check_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID | None = None,
+        organization_id: uuid.UUID | None = None,
+    ) -> ComplianceCheck | None:
+        q = select(ComplianceCheck).where(ComplianceCheck.id == check_id)
+        if owner_id is not None or organization_id is not None:
+            q = q.join(Channel, Channel.id == ComplianceCheck.channel_id)
+        if owner_id is not None:
+            q = q.where(Channel.owner_id == owner_id)
+        if organization_id is not None:
+            q = q.where(Channel.organization_id == organization_id)
+        return (await self._db.execute(q)).scalar_one_or_none()
 
-    async def _load_script(self, script_id: uuid.UUID) -> Script | None:
-        return (
-            await self._db.execute(
-                select(Script).where(Script.id == script_id)
+    async def _load_script(
+        self,
+        script_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        organization_id: uuid.UUID | None = None,
+    ) -> Script | None:
+        q = (
+            select(Script)
+            .join(Channel, Channel.id == Script.channel_id)
+            .where(
+                Script.id == script_id,
+                Channel.owner_id == owner_id,
             )
-        ).scalar_one_or_none()
+        )
+        if organization_id is not None:
+            q = q.where(Channel.organization_id == organization_id)
+        return (await self._db.execute(q)).scalar_one_or_none()
 
     async def _existing_titles(
         self,
