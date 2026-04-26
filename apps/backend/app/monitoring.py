@@ -38,7 +38,12 @@ async def metrics_middleware(request: Request, call_next) -> Response:  # type: 
     response: Response = await call_next(request)
     duration = perf_counter() - start
 
-    endpoint = request.url.path
+    route = request.scope.get("route")
+    endpoint = (
+        getattr(route, "path_format", None)
+        or getattr(route, "path", None)
+        or "unmatched"
+    )
     method = request.method
     status_code = str(response.status_code)
 
