@@ -48,13 +48,24 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[str(o) for o in settings.allowed_origins],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 app.middleware("http")(correlation_id_middleware)
 app.middleware("http")(auth_middleware)
 app.middleware("http")(metrics_middleware)
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
 
 app.include_router(api_router)
 

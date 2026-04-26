@@ -26,6 +26,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
 from app.core.exceptions import NotFoundError, PermissionDeniedError
+from app.db.models.workflow import RunStatus
 from app.schemas.common import TaskResponse
 from app.schemas.workflow import (
     InjectResultRequest,
@@ -79,17 +80,15 @@ async def list_workflows(
     db:            DB,
     channel_id:    uuid.UUID | None  = Query(None),
     pipeline_name: str | None        = Query(None),
-    status_filter: str | None        = Query(None, alias="status"),
+    status_filter: RunStatus | None  = Query(None, alias="status"),
     page:          int               = Query(1, ge=1),
     page_size:     int               = Query(20, ge=1, le=100),
 ) -> WorkflowListResponse:
-    from app.db.models.workflow import RunStatus as RS
-    run_status = RS(status_filter) if status_filter else None
     return await _svc(db).list_runs(
         current_user.id,
         channel_id    = channel_id,
         pipeline_name = pipeline_name,
-        status        = run_status,
+        status        = status_filter,
         page          = page,
         page_size     = page_size,
     )

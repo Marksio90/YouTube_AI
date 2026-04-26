@@ -80,6 +80,7 @@ async def login(request: Request, payload: UserLogin, response: Response, db: DB
 
 
 @router.post("/refresh", response_model=TokenPair)
+@limiter.limit("20/minute")
 async def refresh(request: Request, response: Response, db: DB, payload: TokenRefresh | None = None) -> TokenPair:
     token_str = (payload.refresh_token if payload else None) or request.cookies.get("refresh_token")
     if not token_str:

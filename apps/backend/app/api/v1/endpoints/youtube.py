@@ -1,3 +1,5 @@
+import uuid
+
 import jwt
 from fastapi import APIRouter, HTTPException, Query, Request, status
 
@@ -18,21 +20,21 @@ router = APIRouter(prefix="/youtube", tags=["youtube"])
 
 @router.get("/connect", response_model=YouTubeConnectResponse)
 async def connect_youtube(
-    channel_id: str,
+    channel_id: uuid.UUID,
     request: Request,
     current_user: CurrentUser,
     db: DB,
 ) -> YouTubeConnectResponse:
     svc = YouTubeService(db)
     await svc.get_owned_channel(
-        channel_id=channel_id,
+        channel_id=str(channel_id),
         owner_id=str(current_user.id),
         org_id=str(current_user.organization_id),
     )
 
     redirect_uri = settings.youtube_redirect_uri or str(request.url_for("youtube_callback"))
     state = svc.build_state_token(
-        channel_id=channel_id,
+        channel_id=str(channel_id),
         user_id=str(current_user.id),
         org_id=str(current_user.organization_id),
     )
@@ -125,13 +127,13 @@ async def update_video_metadata(
 @router.get("/videos/{youtube_video_id}/stats", response_model=YouTubeVideoStatsResponse)
 async def get_video_stats(
     youtube_video_id: str,
-    channel_id: str,
+    channel_id: uuid.UUID,
     current_user: CurrentUser,
     db: DB,
 ) -> YouTubeVideoStatsResponse:
     svc = YouTubeService(db)
     channel = await svc.get_owned_channel(
-        channel_id=channel_id,
+        channel_id=str(channel_id),
         owner_id=str(current_user.id),
         org_id=str(current_user.organization_id),
     )

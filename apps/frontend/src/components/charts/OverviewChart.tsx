@@ -1,4 +1,5 @@
 "use client";
+import { useMemo } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -15,20 +16,21 @@ import { SkeletonCard } from "@/components/ui/Skeleton";
 export function OverviewChart() {
   const { data, isLoading } = useOverviewAnalytics(30);
 
-  if (isLoading) return <SkeletonCard rows={4} />;
+  const chartData = useMemo(() => {
+    const byDate: Record<string, { date: string; views: number; revenue: number }> = {};
+    data?.forEach((ch) =>
+      ch.snapshots.forEach((s) => {
+        if (!byDate[s.snapshot_date]) {
+          byDate[s.snapshot_date] = { date: s.snapshot_date, views: 0, revenue: 0 };
+        }
+        byDate[s.snapshot_date].views   += s.views;
+        byDate[s.snapshot_date].revenue += s.revenue_usd;
+      })
+    );
+    return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+  }, [data]);
 
-  // Merge snapshots across all channels by date
-  const byDate: Record<string, { date: string; views: number; revenue: number }> = {};
-  data?.forEach((ch) =>
-    ch.snapshots.forEach((s) => {
-      if (!byDate[s.snapshot_date]) {
-        byDate[s.snapshot_date] = { date: s.snapshot_date, views: 0, revenue: 0 };
-      }
-      byDate[s.snapshot_date].views   += s.views;
-      byDate[s.snapshot_date].revenue += s.revenue_usd;
-    })
-  );
-  const chartData = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+  if (isLoading) return <SkeletonCard rows={4} />;
 
   if (!chartData.length) {
     return (
