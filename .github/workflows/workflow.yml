@@ -145,16 +145,62 @@ jobs:
         run: ruff check apps/backend
 
   tests:
-    name: Tests (placeholder)
+    name: Tests (${{ matrix.suite }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     needs: [lockfile-integrity, frontend-build, backend-build, lint]
+    strategy:
+      fail-fast: true
+      matrix:
+        suite: [backend, frontend]
 
     steps:
-      - name: Placeholder test stage
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        if: matrix.suite == 'frontend'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        if: matrix.suite == 'frontend'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        if: matrix.suite == 'frontend'
+        run: pnpm install --frozen-lockfile
+
+      - name: Run frontend tests
+        if: matrix.suite == 'frontend'
+        run: pnpm --filter frontend test
+
+      - name: Setup Python
+        if: matrix.suite == 'backend'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install backend test dependencies
+        if: matrix.suite == 'backend'
         run: |
-          echo "::warning::Test suite placeholder. Replace with integration + e2e tests before GA."
-          echo "Smoke check: pipeline test stage exists and runs."
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio fastapi sqlalchemy pydantic pydantic-settings PyJWT "passlib[bcrypt]" structlog asyncpg email-validator celery
+
+      - name: Run backend tests
+        if: matrix.suite == 'backend'
+        env:
+          SECRET_KEY: test-secret
+          DATABASE_URL: postgresql+asyncpg://user:pass@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://localhost:6379/1
+          CELERY_RESULT_BACKEND: redis://localhost:6379/2
+          PYTHONPATH: apps/backend
+        run: pytest apps/backend/tests -q
 
   docker:
     name: Docker build & push
