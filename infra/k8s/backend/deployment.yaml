@@ -73,9 +73,8 @@ spec:
               drop: ["ALL"]
       containers:
         - name: backend
-          # Update image tag for each deployment
-          image: your-registry.io/ai-media-os/backend:latest
-          imagePullPolicy: Always
+          image: your-registry.io/ai-media-os/backend:${IMAGE_TAG}
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8000

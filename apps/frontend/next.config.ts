@@ -8,9 +8,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "i.ytimg.com" },
     ],
   },
-  experimental: {
-    turbo: {},
-  },
+  experimental: process.env.NODE_ENV === "development" ? { turbo: {} } : {},
 };
 
 export default nextConfig;
