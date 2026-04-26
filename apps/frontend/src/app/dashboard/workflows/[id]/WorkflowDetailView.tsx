@@ -11,13 +11,15 @@ import { ChevronLeft, Pause, Play, X, RotateCcw } from "lucide-react";
 import { formatDate } from "@/lib/utils/format";
 
 function AuditTrail({ runId }: { runId: string }) {
-  const { data, isLoading } = useWorkflowAudit(runId);
+  const { data: auditResponse, isLoading } = useWorkflowAudit(runId);
+  const events = auditResponse?.events ?? [];
+
   if (isLoading) return <SkeletonCard rows={3} />;
-  if (!data?.length) return <p className="t-muted py-4">No audit events yet.</p>;
+  if (events.length === 0) return <p className="t-muted py-4">No audit events yet.</p>;
 
   return (
     <ol className="space-y-0">
-      {data.map((evt) => (
+      {events.map((evt) => (
         <li key={evt.id} className="flex items-start gap-3 py-2.5 border-b border-[var(--border)] last:border-0">
           <span className="w-1.5 h-1.5 rounded-full bg-gray-700 mt-2 shrink-0" />
           <div className="flex-1 min-w-0">

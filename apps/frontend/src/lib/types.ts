@@ -402,15 +402,11 @@ export interface WorkflowRun {
   jobs: WorkflowJob[];
 }
 
-export interface WorkflowAuditEvent {
-  id: string;
-  run_id: string;
-  job_id: string | null;
-  event_type: string;
-  actor: string;
-  data: Record<string, unknown>;
-  occurred_at: string;
-}
+export type {
+  WorkflowActionResponse,
+  WorkflowAuditEvent,
+  WorkflowAuditResponse,
+} from "@/lib/contracts/workflows";
 
 // ── Compliance ────────────────────────────────────────────────────────────────
 
