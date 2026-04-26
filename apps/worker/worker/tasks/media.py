@@ -137,6 +137,11 @@ async def _run_generate_audio(
 
     task.update_state(state="PROGRESS", meta={"step": "synthesizing", "progress": 30})
 
+    tts_truncated = False
+    original_body_len = len(script["body"]) if script.get("body") else 0
+    if original_body_len > 8000:
+        tts_truncated = True
+
     if settings.app_env == "production":
         audio_bytes = await _real_tts(
             body=script["body"],
@@ -145,7 +150,7 @@ async def _run_generate_audio(
             tempo=tempo,
             tone=tone,
         )
-        audio_url = _upload_audio_to_storage(audio_bytes, script_id)
+        audio_url = await _upload_audio_to_storage(audio_bytes, script_id)
     else:
         audio_url = _mock_audio(script_id)
 
@@ -197,6 +202,8 @@ async def _run_generate_audio(
             "voice_id": voice_id,
             "tempo": tempo,
             "tone": tone,
+            "truncated": tts_truncated,
+            "original_length": original_body_len,
         }
         await registry.record_success(db, task_id=task_id, result=result)
 
@@ -215,6 +222,9 @@ async def _real_tts(
 ) -> bytes:
     """Production TTS synthesis for OpenAI/ElevenLabs providers."""
     import httpx
+
+    if len(body) > 8000:
+        log.warning("tts.body_truncated", original_len=len(body), truncated_to=8000, provider=provider)
 
     if provider == "openai":
         if not settings.openai_api_key:
@@ -272,19 +282,26 @@ def _estimate_duration_seconds(word_count: int, *, tempo: float) -> float:
     return round((safe_word_count / (150 * safe_tempo)) * 60, 1)
 
 
-def _upload_audio_to_storage(audio_bytes: bytes, script_id: str) -> str:
+async def _upload_audio_to_storage(audio_bytes: bytes, script_id: str) -> str:
     import boto3
 
     key = f"audio/{script_id}/{uuid.uuid4()}.mp3"
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=settings.s3_endpoint_url or None,
-        aws_access_key_id=settings.s3_access_key_id,
-        aws_secret_access_key=settings.s3_secret_access_key,
-        region_name=settings.s3_region,
-    )
-    s3.put_object(Bucket=settings.s3_bucket_media, Key=key, Body=audio_bytes, ContentType="audio/mpeg")
-    return f"https://{settings.s3_bucket_media}.s3.{settings.s3_region}.amazonaws.com/{key}"
+    bucket = settings.s3_bucket_media
+    region = settings.s3_region
+
+    def _do_upload() -> str:
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=settings.s3_endpoint_url or None,
+            aws_access_key_id=settings.s3_access_key_id,
+            aws_secret_access_key=settings.s3_secret_access_key,
+            region_name=region,
+        )
+        s3.put_object(Bucket=bucket, Key=key, Body=audio_bytes, ContentType="audio/mpeg")
+        return f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _do_upload)
 
 
 # ── generate_thumbnail ────────────────────────────────────────────────────────
@@ -419,7 +436,7 @@ async def _run_generate_thumbnail(
                 concept.color_scheme.model_dump(),
                 concept.layout,
             )
-            image_url = _upload_thumbnail(final_bytes, publication_id, thumb_id)
+            image_url = await _upload_thumbnail(final_bytes, publication_id, thumb_id)
             is_top = concept.concept_id == agent_output.top_pick_id
 
             async with get_db_session() as db:
@@ -527,19 +544,26 @@ def _apply_text_overlay(
     return overlay_text(image_bytes, headline, sub_text, color_scheme, layout)
 
 
-def _upload_thumbnail(image_bytes: bytes, publication_id: str, thumb_id: str) -> str:
+async def _upload_thumbnail(image_bytes: bytes, publication_id: str, thumb_id: str) -> str:
     import boto3
 
     key = f"thumbnails/{publication_id}/{thumb_id}.png"
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=settings.s3_endpoint_url or None,
-        aws_access_key_id=settings.s3_access_key_id,
-        aws_secret_access_key=settings.s3_secret_access_key,
-        region_name=settings.s3_region,
-    )
-    s3.put_object(Bucket=settings.s3_bucket_media, Key=key, Body=image_bytes, ContentType="image/png")
-    return f"https://{settings.s3_bucket_media}.s3.{settings.s3_region}.amazonaws.com/{key}"
+    bucket = settings.s3_bucket_media
+    region = settings.s3_region
+
+    def _do_upload() -> str:
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=settings.s3_endpoint_url or None,
+            aws_access_key_id=settings.s3_access_key_id,
+            aws_secret_access_key=settings.s3_secret_access_key,
+            region_name=region,
+        )
+        s3.put_object(Bucket=bucket, Key=key, Body=image_bytes, ContentType="image/png")
+        return f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
+
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _do_upload)
 
 
 async def _upsert_thumbnail(

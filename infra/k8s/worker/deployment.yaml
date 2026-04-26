@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/component: worker
     spec:
       # Long grace period: active Celery tasks must finish before pod dies
-      terminationGracePeriodSeconds: 120
+      terminationGracePeriodSeconds: 300
       serviceAccountName: ai-media-os-worker
       securityContext:
         runAsNonRoot: true
@@ -77,6 +77,13 @@ spec:
             - name: metrics
               containerPort: 9108
               protocol: TCP
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - celery -A worker.celery_app control shutdown --destination celery@$HOSTNAME
           command:
             - celery
             - -A

@@ -6,6 +6,8 @@ from typing import Any
 import httpx
 import structlog
 
+from worker.idempotency import IdempotencyError
+
 log = structlog.get_logger(__name__)
 
 NON_RETRYABLE_TASK_ERRORS: tuple[type[Exception], ...] = (
@@ -13,6 +15,7 @@ NON_RETRYABLE_TASK_ERRORS: tuple[type[Exception], ...] = (
     LookupError,
     KeyError,
     TypeError,
+    IdempotencyError,
 )
 
 RETRYABLE_TASK_ERRORS: tuple[type[Exception], ...] = (
