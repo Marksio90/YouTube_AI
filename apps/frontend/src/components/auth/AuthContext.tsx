@@ -3,7 +3,7 @@
 import { apiClient, ApiClientError } from "@/lib/api/client";
 import { clearSession, loadSession, saveSession } from "@/lib/auth/session";
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 type LoginPayload = { email: string; password: string };
 
@@ -43,13 +43,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void checkSession();
   }, []);
 
-  const login = async ({ email, password }: LoginPayload) => {
+  const login = useCallback(async ({ email, password }: LoginPayload) => {
     await apiClient.post("/auth/login", { email, password }, { skipAuthRefresh: true });
     await fetchSession();
     router.push("/dashboard");
-  };
+  }, [router]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await apiClient.post("/auth/logout", undefined, { skipAuthRefresh: true });
     } finally {
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAuthenticated(false);
       router.push("/login");
     }
-  };
+  }, [router]);
 
   const value = useMemo<AuthContextType>(
     () => ({
@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
     }),
-    [ready, isAuthenticated]
+    [ready, isAuthenticated, login, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
