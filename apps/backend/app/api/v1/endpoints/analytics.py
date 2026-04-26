@@ -164,7 +164,6 @@ async def channel_score(
     score = await svc.score_channel(
         channel_id, owner_id=current_user.id, period_days=period
     )
-    await db.commit()
     return PerformanceScoreRead.from_orm_with_dims(score)
 
 
@@ -190,7 +189,6 @@ async def publication_score(
     score = await svc.score_publication(
         publication_id, channel_id=pub.channel_id, period_days=period
     )
-    await db.commit()
     return PerformanceScoreRead.from_orm_with_dims(score)
 
 
@@ -320,7 +318,6 @@ async def generate_recommendations_sync(
     recs = await svc.generate_recommendations(
         channel_id, period_days=period, replace_existing=True
     )
-    await db.commit()
     return [RecommendationRead.model_validate(r) for r in recs]
 
 
@@ -336,7 +333,6 @@ async def apply_recommendation(
 ) -> RecommendationRead:
     svc = ScoringService(db)
     rec = await svc.action_recommendation(rec_id, action="apply")
-    await db.commit()
     return RecommendationRead.model_validate(rec)
 
 
@@ -352,7 +348,6 @@ async def dismiss_recommendation(
 ) -> RecommendationRead:
     svc = ScoringService(db)
     rec = await svc.action_recommendation(rec_id, action="dismiss")
-    await db.commit()
     return RecommendationRead.model_validate(rec)
 
 
@@ -367,5 +362,4 @@ async def snooze_recommendation(
 ) -> RecommendationRead:
     svc = ScoringService(db)
     rec = await svc.action_recommendation(rec_id, action="snooze")
-    await db.commit()
     return RecommendationRead.model_validate(rec)

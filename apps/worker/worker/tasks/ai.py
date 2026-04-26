@@ -283,27 +283,36 @@ async def _run_generate_brief(task, task_id, channel_id, topic_id, idp_key) -> d
             style_notes=topic_row.get("description") or "",
         )
     )
-    brief_id = str(uuid.uuid4())
+    brief_id_gen = str(uuid.uuid4())
     async with get_db_session() as db:
-        await db.execute(
-            text("""
-                INSERT INTO briefs
-                    (id, channel_id, topic_id, title, target_audience, key_points,
-                     seo_keywords, estimated_duration_seconds, tone, status)
-                VALUES
-                    (:id, :channel_id, :topic_id, :title, '', :key_points,
-                     :seo_keywords, 600, 'educational', 'draft')
-                ON CONFLICT DO NOTHING
-            """),
-            {
-                "id": brief_id,
-                "channel_id": channel_id,
-                "topic_id": topic_id,
-                "title": brief_out.title or topic_row["title"],
-                "key_points": _as_json(brief_out.keywords),
-                "seo_keywords": brief_out.keywords,
-            },
-        )
+        existing = (await db.execute(
+            text("SELECT id FROM briefs WHERE topic_id = :topic_id LIMIT 1"),
+            {"topic_id": topic_id},
+        )).fetchone()
+
+        if existing:
+            brief_id = str(existing[0])
+        else:
+            row = (await db.execute(
+                text("""
+                    INSERT INTO briefs
+                        (id, channel_id, topic_id, title, target_audience, key_points,
+                         seo_keywords, estimated_duration_seconds, tone, status)
+                    VALUES
+                        (:id, :channel_id, :topic_id, :title, '', :key_points,
+                         :seo_keywords, 600, 'educational', 'draft')
+                    RETURNING id
+                """),
+                {
+                    "id": brief_id_gen,
+                    "channel_id": channel_id,
+                    "topic_id": topic_id,
+                    "title": brief_out.title or topic_row["title"],
+                    "key_points": _as_json(brief_out.keywords),
+                    "seo_keywords": brief_out.keywords,
+                },
+            )).fetchone()
+            brief_id = str(row[0])
         await db.execute(
             text("UPDATE topics SET status='briefed', updated_at=NOW() WHERE id=:id"),
             {"id": topic_id},
