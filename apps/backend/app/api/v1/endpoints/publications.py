@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Query, status
 
 from app.api.v1.deps import CurrentUser, DB
+from app.db.models.publication import PublicationStatus
 from app.schemas.common import PaginatedResponse, TaskResponse
 from app.schemas.publication import PublicationCreate, PublicationRead, PublicationUpdate, PublishPipelineRequest
 from app.services.publication import PublicationService
@@ -15,7 +16,7 @@ async def list_publications(
     current_user: CurrentUser,
     db: DB,
     channel_id: uuid.UUID | None = None,
-    status: str | None = None,
+    status: PublicationStatus | None = Query(default=None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse[PublicationRead]:
