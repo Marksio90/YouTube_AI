@@ -526,6 +526,18 @@ class ScoringService:
                     expires_at=expires,
                 ))
 
+        # Pre-fetch all topic titles in one query to avoid N+1
+        if topic_pubs:
+            topic_title_rows = await self.db.execute(
+                text("SELECT id::text AS id, title FROM topics WHERE id::text = ANY(:ids)"),
+                {"ids": list(topic_pubs.keys())},
+            )
+            topics_map: dict[str, str] = {
+                r["id"]: r["title"] for r in topic_title_rows.mappings()
+            }
+        else:
+            topics_map = {}
+
         # ── kill_topic / scale_topic ──────────────────────────────────────────
         for tid, tpubs in topic_pubs.items():
             if len(tpubs) < 1:
@@ -533,13 +545,7 @@ class ScoringService:
             scores = [p["perf_score"] for p in tpubs]
             avg_s  = sum(scores) / len(scores)
             topic_id = uuid.UUID(tid)
-
-            # Fetch topic title
-            topic_row = await self.db.execute(
-                text("SELECT title FROM topics WHERE id=:id"), {"id": tid}
-            )
-            t = topic_row.mappings().one_or_none()
-            topic_title = t["title"] if t else "this topic"
+            topic_title = topics_map.get(tid, "this topic")
 
             if len(tpubs) >= 3 and avg_s < _SCORE_KILL:
                 recs.append(self._make_rec(
