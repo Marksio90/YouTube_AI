@@ -5,6 +5,7 @@ from fastapi import HTTPException, Request, Response, status
 from app.core.security import TokenValidationError, decode_token
 
 PUBLIC_PATHS = {
+    "/api/v1/auth/csrf",
     "/api/v1/auth/login",
     "/api/v1/auth/register",
     "/api/v1/auth/refresh",
