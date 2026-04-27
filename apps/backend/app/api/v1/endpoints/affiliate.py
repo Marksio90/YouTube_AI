@@ -46,6 +46,7 @@ from app.schemas.affiliate import (
     CampaignCreate,
     CampaignRead,
     CampaignReportRead,
+    CampaignStatusType,
     CampaignUpdate,
     ClickHistoryRow,
     ClickRead,
@@ -115,7 +116,7 @@ async def list_campaigns(
     channel_id: uuid.UUID,
     current_user: CurrentUser,
     db: DB,
-    status: CampaignStatus | None = Query(default=None),
+    status: CampaignStatusType | None = Query(default=None),
 ) -> list[CampaignRead]:
     await _owned_channel(channel_id, current_user.id, db)
     svc = AffiliateService(db)
