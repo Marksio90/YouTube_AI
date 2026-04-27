@@ -11,10 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml .
-RUN mkdir -p app && touch app/__init__.py
 RUN python -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /venv/bin/pip install --no-cache-dir .
+    python3 -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); open('/tmp/r.txt','w').write('\n'.join(d['project']['dependencies']))" && \
+    /venv/bin/pip install --no-cache-dir -r /tmp/r.txt
 
 # ── Development: all deps (prod + dev) + hot reload ───────────────────────────
 FROM base AS development
