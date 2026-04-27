@@ -26,7 +26,7 @@ dependencies = [
     "python-dotenv==1.2.2",
     "prometheus-client==0.22.0",
     "cryptography==43.0.3",
-    "Pillow==11.1.0",
+    "Pillow==12.2.0",
     "flower==2.0.1",
 ]
 
