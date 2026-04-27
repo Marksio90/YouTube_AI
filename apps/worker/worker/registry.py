@@ -43,7 +43,35 @@ CREATE INDEX IF NOT EXISTS idx_task_runs_status  ON task_runs (status);
 
 
 async def ensure_table(db: AsyncSession) -> None:
-    await db.execute(text(_CREATE_TABLE_SQL))
+    await db.execute(text("""
+        CREATE TABLE IF NOT EXISTS task_runs (
+            id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            task_id         VARCHAR(255) NOT NULL,
+            task_name       VARCHAR(255) NOT NULL,
+            entity_type     VARCHAR(100),
+            entity_id       UUID,
+            status          VARCHAR(50)  NOT NULL DEFAULT 'pending',
+            progress        INTEGER      NOT NULL DEFAULT 0,
+            step            VARCHAR(100),
+            input           JSONB,
+            result          JSONB,
+            error           TEXT,
+            retry_count     INTEGER      NOT NULL DEFAULT 0,
+            started_at      TIMESTAMPTZ,
+            completed_at    TIMESTAMPTZ,
+            created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        )
+    """))
+    await db.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_task_runs_task_id ON task_runs (task_id)"
+    ))
+    await db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_task_runs_entity ON task_runs (entity_type, entity_id)"
+    ))
+    await db.execute(text(
+        "CREATE INDEX IF NOT EXISTS idx_task_runs_status ON task_runs (status)"
+    ))
     await db.commit()
 
 
