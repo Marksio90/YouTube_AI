@@ -18,7 +18,7 @@ dependencies = [
     "openai==1.58.1",
     "httpx==0.28.1",
     "pydantic==2.10.3",
-    "pydantic-settings==2.6.1",
+    "pydantic-settings==2.14.0",
     "redis[hiredis]==5.2.1",
     "boto3==1.35.88",
     "structlog==24.4.0",
