@@ -432,7 +432,7 @@ class ScoringService:
                         channel_id=channel_id, publication_id=pub_id,
                         rec_type=RecommendationType.improve_thumbnail,
                         priority=RecommendationPriority.critical,
-                        title=f"Critical: low CTR on "{p['pub_title'][:60]}"",
+                        title=f'Critical: low CTR on "{p["pub_title"][:60]}"',
                         body=(
                             f"CTR is **{ctr*100:.1f}%** against {_MIN_IMPRESSIONS:,} impressions. "
                             "Benchmark: 4%. Your thumbnail is failing to convert impressions to clicks. "
@@ -451,7 +451,7 @@ class ScoringService:
                         channel_id=channel_id, publication_id=pub_id,
                         rec_type=RecommendationType.improve_thumbnail,
                         priority=RecommendationPriority.high,
-                        title=f"Low CTR: "{p['pub_title'][:60]}"",
+                        title=f'Low CTR: "{p["pub_title"][:60]}"',
                         body=(
                             f"CTR is **{ctr*100:.1f}%** — below the 2.5% action threshold. "
                             "Consider A/B testing a new thumbnail with a different emotion or "
@@ -471,7 +471,7 @@ class ScoringService:
                     channel_id=channel_id, publication_id=pub_id,
                     rec_type=RecommendationType.improve_hook,
                     priority=RecommendationPriority.high,
-                    title=f"Weak hook: "{p['pub_title'][:60]}"",
+                    title=f'Weak hook: "{p["pub_title"][:60]}"',
                     body=(
                         f"Average retention is **{ret*100:.0f}%** — viewers are dropping off early. "
                         "The first 30 seconds must promise the payoff immediately. "
@@ -492,7 +492,7 @@ class ScoringService:
                     channel_id=channel_id, publication_id=pub_id,
                     rec_type=RecommendationType.repeat_format,
                     priority=RecommendationPriority.medium,
-                    title=f"Winning format: replicate "{p['pub_title'][:60]}"",
+                    title=f'Winning format: replicate "{p["pub_title"][:60]}"',
                     body=(
                         f"This video scored **{score:.0f}/100** — in your top tier. "
                         "Analyse its structure: hook duration, segment count, pacing, thumbnail style. "
@@ -512,7 +512,7 @@ class ScoringService:
                     channel_id=channel_id, publication_id=pub_id,
                     rec_type=RecommendationType.localize,
                     priority=RecommendationPriority.low,
-                    title=f"Localize "{p['pub_title'][:60]}" for high-CPM markets",
+                    title=f'Localize "{p["pub_title"][:60]}" for high-CPM markets',
                     body=(
                         f"RPM is **${rpm:.2f}** with {int(views):,} views — strong monetisation signal. "
                         "Dub or subtitle into German, French, or Spanish to reach additional high-CPM "
@@ -552,7 +552,7 @@ class ScoringService:
                     channel_id=channel_id, topic_id=topic_id,
                     rec_type=RecommendationType.kill_topic,
                     priority=RecommendationPriority.medium,
-                    title=f"Kill topic: "{topic_title[:60]}"",
+                    title=f'Kill topic: "{topic_title[:60]}"',
                     body=(
                         f"{len(tpubs)} videos on this topic average **{avg_s:.0f}/100** — "
                         "consistently below the 30-point floor. The audience is not interested "
@@ -571,7 +571,7 @@ class ScoringService:
                     channel_id=channel_id, topic_id=topic_id,
                     rec_type=RecommendationType.scale_topic,
                     priority=RecommendationPriority.high,
-                    title=f"Scale topic: "{topic_title[:60]}"",
+                    title=f'Scale topic: "{topic_title[:60]}"',
                     body=(
                         f"Only {len(tpubs)} video(s) on this topic with avg score "
                         f"**{avg_s:.0f}/100**. You have an underexplored winner. "
