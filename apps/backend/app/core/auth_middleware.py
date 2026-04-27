@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, Response, status
+import json
+
+from fastapi import Request, Response, status
 
 from app.core.security import TokenValidationError, decode_token
 
@@ -16,6 +18,17 @@ PUBLIC_PATHS = {
     "/metrics",
 }
 
+_UNAUTHORIZED = Response(
+    content=json.dumps({"detail": "Missing bearer token"}),
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    media_type="application/json",
+)
+_INVALID_TOKEN = Response(
+    content=json.dumps({"detail": "Invalid token"}),
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    media_type="application/json",
+)
+
 
 async def auth_middleware(request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
     path = request.url.path
@@ -30,11 +43,11 @@ async def auth_middleware(request: Request, call_next) -> Response:  # type: ign
         token = request.cookies.get("access_token")
 
     if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+        return _UNAUTHORIZED
     try:
         token_data = decode_token(token, expected_type="access")
-    except TokenValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+    except TokenValidationError:
+        return _INVALID_TOKEN
 
     request.state.token_data = token_data
     return await call_next(request)
