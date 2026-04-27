@@ -15,7 +15,7 @@ dependencies = [
     "celery-redbeat==2.2.0",
     "sqlalchemy[asyncio]==2.0.36",
     "asyncpg==0.30.0",
-    "openai==1.58.1",
+    "openai==2.32.0",
     "httpx==0.28.1",
     "pydantic==2.10.3",
     "pydantic-settings==2.6.1",
