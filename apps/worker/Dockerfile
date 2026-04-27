@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml .
+RUN mkdir -p worker && touch worker/__init__.py
 RUN python -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir .
@@ -21,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml .
+RUN mkdir -p worker && touch worker/__init__.py
 RUN pip install --no-cache-dir -e ".[dev]"
 COPY . .
 CMD ["celery", "-A", "worker.celery_app", "worker", \
