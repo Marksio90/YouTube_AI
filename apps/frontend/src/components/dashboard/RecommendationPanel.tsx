@@ -137,7 +137,7 @@ export function RecommendationPanel({ channelId }: { channelId?: string }) {
           {Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)}
         </div>
       ) : isError ? (
-        <ErrorState message="Failed to load recommendations. Please try again." />
+        <ErrorState title="Failed to load recommendations. Please try again." />
       ) : !data?.length ? (
         <EmptyState
           icon={<Lightbulb className="h-5 w-5" />}
