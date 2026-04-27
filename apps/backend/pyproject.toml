@@ -33,7 +33,7 @@ dependencies = [
     "slowapi>=0.1.9",
 
     # Redis
-    "redis[hiredis]==5.2.1",
+    "redis[hiredis]==7.4.0",
 
     # Task queue
     "celery==5.4.0",
