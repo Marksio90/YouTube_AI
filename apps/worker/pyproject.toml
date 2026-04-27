@@ -27,6 +27,7 @@ dependencies = [
     "prometheus-client==0.22.0",
     "cryptography==43.0.3",
     "Pillow==11.1.0",
+    "flower==2.0.1",
 ]
 
 [project.optional-dependencies]

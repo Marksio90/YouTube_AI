@@ -33,6 +33,11 @@ class ForbiddenError(AppError):
     code = "FORBIDDEN"
 
 
+class PermissionDeniedError(AppError):
+    status_code = 403
+    code = "PERMISSION_DENIED"
+
+
 class UnprocessableError(AppError):
     status_code = 422
     code = "UNPROCESSABLE"
