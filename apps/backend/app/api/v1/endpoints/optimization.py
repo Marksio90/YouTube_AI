@@ -2,16 +2,23 @@
 Optimization API — content growth brain.
 
 Routes:
-  POST /channels/{id}/optimization/generate          enqueue optimization report
-  GET  /channels/{id}/optimization                   latest report
-  GET  /channels/{id}/optimization/next-topics       AI-suggested next topics
-  GET  /channels/{id}/optimization/format-insights   format suggestions + watch-time insights
-  GET  /publications/{id}/optimization               publication deep-dive
+  POST /channels/{channel_id}/optimization/generate
+  POST /channels/{channel_id}/optimization/generate-sync
+  GET  /channels/{channel_id}/optimization
+  GET  /channels/{channel_id}/optimization/next-topics
+  GET  /channels/{channel_id}/optimization/format-insights
+  GET  /publications/{publication_id}/optimization
 """
-import uuid
 
+from __future__ import annotations
+
+import uuid
+from typing import Any
+
+import structlog
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import CurrentUser, DB
 from app.core.exceptions import NotFoundError
@@ -23,11 +30,64 @@ from app.schemas.optimization import (
     PublicationInsightsRead,
 )
 from app.services.optimization import OptimizationService
+from app.tasks.ai import enqueue_optimize_channel
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["optimization"])
 
+DEFAULT_NEXT_TOPICS_LIMIT = 10
+MAX_NEXT_TOPICS_LIMIT = 20
 
-# ── generate ──────────────────────────────────────────────────────────────────
+
+async def _ensure_owned_channel(
+    *,
+    db: AsyncSession,
+    channel_id: uuid.UUID,
+    current_user: CurrentUser,
+) -> None:
+    channel = await ChannelRepository(db).get_owned(
+        channel_id,
+        owner_id=current_user.id,
+        organization_id=current_user.organization_id,
+    )
+    if not channel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Channel not found",
+        )
+
+
+async def _latest_ready_report_row(
+    *,
+    db: AsyncSession,
+    channel_id: uuid.UUID,
+    columns: str,
+) -> dict[str, Any]:
+    row = (
+        await db.execute(
+            text(
+                f"""
+                SELECT {columns}
+                FROM optimization_reports
+                WHERE channel_id = :channel_id
+                  AND status = 'ready'
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """
+            ),
+            {"channel_id": str(channel_id)},
+        )
+    ).mappings().one_or_none()
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No optimization report yet. POST /generate to create one.",
+        )
+
+    return dict(row)
+
 
 @router.post(
     "/channels/{channel_id}/optimization/generate",
@@ -41,21 +101,27 @@ async def generate_optimization_report(
     current_user: CurrentUser,
     db: DB,
 ) -> TaskResponse:
-    channel = await ChannelRepository(db).get_owned(channel_id, owner_id=current_user.id)
-    if not channel:
-        raise HTTPException(status_code=404, detail="Channel not found")
+    await _ensure_owned_channel(db=db, channel_id=channel_id, current_user=current_user)
 
-    from app.tasks.ai import enqueue_optimize_channel
     task_id = enqueue_optimize_channel(
         channel_id=str(channel_id),
         owner_id=str(current_user.id),
         period_days=payload.period_days,
         force=payload.force,
     )
+
+    logger.info(
+        "optimization.report_queued",
+        channel_id=str(channel_id),
+        owner_id=str(current_user.id),
+        organization_id=str(current_user.organization_id),
+        period_days=payload.period_days,
+        force=payload.force,
+        task_id=task_id,
+    )
+
     return TaskResponse(task_id=task_id, status="queued")
 
-
-# ── latest report ─────────────────────────────────────────────────────────────
 
 @router.get(
     "/channels/{channel_id}/optimization",
@@ -67,102 +133,85 @@ async def get_optimization_report(
     current_user: CurrentUser,
     db: DB,
 ) -> OptimizationReportRead:
-    channel = await ChannelRepository(db).get_owned(channel_id, owner_id=current_user.id)
-    if not channel:
-        raise HTTPException(status_code=404, detail="Channel not found")
+    await _ensure_owned_channel(db=db, channel_id=channel_id, current_user=current_user)
 
-    svc = OptimizationService(db)
-    report = await svc.get_latest_report(channel_id)
+    service = OptimizationService(db)
+    report = await service.get_latest_report(channel_id)
+
     if not report:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="No optimization report yet. POST /generate to create one.",
         )
-    return OptimizationReportRead.from_orm(report)
 
+    return OptimizationReportRead.model_validate(report)
 
-# ── next topics view ──────────────────────────────────────────────────────────
 
 @router.get(
     "/channels/{channel_id}/optimization/next-topics",
-    response_model=list[dict],
+    response_model=list[dict[str, Any]],
     summary="AI-suggested next topics from the latest optimization report",
 )
 async def get_next_topics(
     channel_id: uuid.UUID,
     current_user: CurrentUser,
     db: DB,
-    limit: int = Query(10, ge=1, le=20),
-) -> list[dict]:
-    channel = await ChannelRepository(db).get_owned(channel_id, owner_id=current_user.id)
-    if not channel:
-        raise HTTPException(status_code=404, detail="Channel not found")
+    limit: int = Query(DEFAULT_NEXT_TOPICS_LIMIT, ge=1, le=MAX_NEXT_TOPICS_LIMIT),
+) -> list[dict[str, Any]]:
+    await _ensure_owned_channel(db=db, channel_id=channel_id, current_user=current_user)
 
-    row = (
-        await db.execute(
-            text("""
-                SELECT next_topics FROM optimization_reports
-                WHERE channel_id=:cid AND status='ready'
-                ORDER BY updated_at DESC LIMIT 1
-            """),
-            {"cid": str(channel_id)},
+    row = await _latest_ready_report_row(
+        db=db,
+        channel_id=channel_id,
+        columns="next_topics",
+    )
+
+    next_topics = row.get("next_topics") or []
+    if not isinstance(next_topics, list):
+        logger.warning(
+            "optimization.next_topics_invalid_shape",
+            channel_id=str(channel_id),
+            value_type=type(next_topics).__name__,
         )
-    ).mappings().one_or_none()
+        return []
 
-    if not row:
-        raise HTTPException(
-            status_code=404,
-            detail="No optimization report yet. POST /generate to create one.",
-        )
-    return (row["next_topics"] or [])[:limit]
+    return next_topics[:limit]
 
-
-# ── format insights view ──────────────────────────────────────────────────────
 
 @router.get(
     "/channels/{channel_id}/optimization/format-insights",
-    response_model=dict,
+    response_model=dict[str, Any],
     summary="Format suggestions and watch-time insights from the latest report",
 )
 async def get_format_insights(
     channel_id: uuid.UUID,
     current_user: CurrentUser,
     db: DB,
-) -> dict:
-    channel = await ChannelRepository(db).get_owned(channel_id, owner_id=current_user.id)
-    if not channel:
-        raise HTTPException(status_code=404, detail="Channel not found")
+) -> dict[str, Any]:
+    await _ensure_owned_channel(db=db, channel_id=channel_id, current_user=current_user)
 
-    row = (
-        await db.execute(
-            text("""
-                SELECT format_suggestions, watch_time_insights, ctr_insights,
-                       growth_trajectory, growth_score, summary
-                FROM optimization_reports
-                WHERE channel_id=:cid AND status='ready'
-                ORDER BY updated_at DESC LIMIT 1
-            """),
-            {"cid": str(channel_id)},
-        )
-    ).mappings().one_or_none()
-
-    if not row:
-        raise HTTPException(
-            status_code=404,
-            detail="No optimization report yet. POST /generate to create one.",
-        )
+    row = await _latest_ready_report_row(
+        db=db,
+        channel_id=channel_id,
+        columns="""
+            format_suggestions,
+            watch_time_insights,
+            ctr_insights,
+            growth_trajectory,
+            growth_score,
+            summary
+        """,
+    )
 
     return {
-        "growth_trajectory": row["growth_trajectory"],
-        "growth_score": row["growth_score"],
-        "summary": row["summary"],
-        "format_suggestions": row["format_suggestions"] or [],
-        "watch_time_insights": row["watch_time_insights"] or [],
-        "ctr_insights": row["ctr_insights"] or [],
+        "growth_trajectory": row.get("growth_trajectory"),
+        "growth_score": row.get("growth_score"),
+        "summary": row.get("summary"),
+        "format_suggestions": row.get("format_suggestions") or [],
+        "watch_time_insights": row.get("watch_time_insights") or [],
+        "ctr_insights": row.get("ctr_insights") or [],
     }
 
-
-# ── publication deep-dive ─────────────────────────────────────────────────────
 
 @router.get(
     "/publications/{publication_id}/optimization",
@@ -174,22 +223,26 @@ async def get_publication_optimization(
     current_user: CurrentUser,
     db: DB,
 ) -> PublicationInsightsRead:
-    svc = OptimizationService(db)
+    service = OptimizationService(db)
+
     try:
-        data = await svc.get_publication_insights(
-            publication_id, owner_id=current_user.id
+        data = await service.get_publication_insights(
+            publication_id,
+            owner_id=current_user.id,
         )
-    except NotFoundError:
-        raise HTTPException(status_code=404, detail="Publication not found")
-    return PublicationInsightsRead(**data)
+    except NotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Publication not found",
+        ) from exc
 
+    return PublicationInsightsRead.model_validate(data)
 
-# ── sync generate (small channels / dev) ──────────────────────────────────────
 
 @router.post(
     "/channels/{channel_id}/optimization/generate-sync",
     response_model=OptimizationReportRead,
-    summary="Generate optimization report synchronously (dev/small channels)",
+    summary="Generate optimization report synchronously for dev or small channels",
 )
 async def generate_optimization_sync(
     channel_id: uuid.UUID,
@@ -197,15 +250,36 @@ async def generate_optimization_sync(
     current_user: CurrentUser,
     db: DB,
 ) -> OptimizationReportRead:
-    channel = await ChannelRepository(db).get_owned(channel_id, owner_id=current_user.id)
-    if not channel:
-        raise HTTPException(status_code=404, detail="Channel not found")
+    await _ensure_owned_channel(db=db, channel_id=channel_id, current_user=current_user)
 
-    svc = OptimizationService(db)
-    report = await svc.generate_report(
-        channel_id,
-        owner_id=current_user.id,
+    service = OptimizationService(db)
+
+    try:
+        report = await service.generate_report(
+            channel_id,
+            owner_id=current_user.id,
+            period_days=payload.period_days,
+        )
+        await db.commit()
+        await db.refresh(report)
+    except Exception:
+        await db.rollback()
+        logger.exception(
+            "optimization.generate_sync_failed",
+            channel_id=str(channel_id),
+            owner_id=str(current_user.id),
+            organization_id=str(current_user.organization_id),
+            period_days=payload.period_days,
+            force=payload.force,
+        )
+        raise
+
+    logger.info(
+        "optimization.generate_sync_completed",
+        channel_id=str(channel_id),
+        owner_id=str(current_user.id),
+        report_id=str(report.id),
         period_days=payload.period_days,
     )
-    await db.commit()
-    return OptimizationReportRead.from_orm(report)
+
+    return OptimizationReportRead.model_validate(report)
